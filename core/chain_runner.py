@@ -145,12 +145,15 @@ class ChainRunner:
             tester_response = self.tester.run(tester_msgs, self.output_settings)
             self._add_message("model", "Tester", tester_response)
 
-            if "[FAIL]" in tester_response:
+            tester_passed = "[PASS]" in tester_response
+
+            if not tester_passed:
                 for attempt in range(max_retries):
                     fix_prompt = (
-                        f"Tester 피드백:\n{tester_response}\n\n"
+                        f"Tester가 다음 오류를 발견했습니다:\n{tester_response}\n\n"
                         f"기존 코드:\n```python\n{code}\n```\n\n"
-                        f"오류를 수정한 전체 코드를 작성해주세요."
+                        f"오류를 반드시 수정한 전체 코드를 작성해주세요.\n"
+                        f"특히 지적된 부분을 정확히 고치세요."
                     )
                     fix_msgs = self._build_agent_messages(fix_prompt)
                     fix_response = self.coder.run(fix_msgs, self.output_settings)
@@ -165,12 +168,18 @@ class ChainRunner:
                         re_test_response = self.tester.run(re_test_msgs, self.output_settings)
                         self._add_message("model", "Tester", re_test_response)
                         if "[PASS]" in re_test_response:
+                            tester_passed = True
                             break
                         tester_response = re_test_response
                     else:
                         break
 
-            self.pending_exec = code
+            if tester_passed:
+                self.pending_exec = code
+            else:
+                # Tester 통과 못한 코드는 실행하지 않음 - 그래도 시도는 해봄
+                self._add_message("model", "Tester", "[WARNING] Tester 미통과 코드 - 실행 시도합니다")
+                self.pending_exec = code
             self.messages.append({"role": "user", "text": tester_prompt})
             self.messages.append({"role": "model", "text": "[Tester] 코드 분석 완료"})
         else:
