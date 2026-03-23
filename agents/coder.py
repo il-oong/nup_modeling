@@ -17,7 +17,7 @@ class CoderAgent(AgentBase):
         "반드시 지켜야 할 규칙:\n"
         "1. 반드시 실행 가능한 완전한 Python 코드를 출력한다.\n"
         "2. 코드는 반드시 ```python 블록 안에 작성한다.\n"
-        "3. import bpy 로 시작한다.\n"
+        "3. 모든 import문은 코드 최상단에 작성한다. 코드 중간이나 하단에 import 금지.\n"
         "4. os, subprocess, sys, shutil 등 시스템 모듈을 절대 사용하지 않는다.\n"
         "5. __import__(), eval(), exec(), open() 함수를 사용하지 않는다.\n"
         "5-1. if __name__ == '__main__': 패턴 사용 금지 (exec() 환경에서 실행됨).\n"

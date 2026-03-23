@@ -5,6 +5,7 @@ import threading
 import bpy
 from bpy.props import IntProperty
 
+from ..utils import unsplash as _unsplash_mod
 from ..utils.unsplash import search_images, download_image
 
 # 검색 결과 캐시 (모듈 레벨)
@@ -116,6 +117,7 @@ class NUP_OT_SearchRefImage(bpy.types.Operator):
             if _search_results:
                 _cleanup_old_thumbs()
 
+
                 scene = context.scene
                 scene.nup_ref_search_results.clear()
                 for item in _search_results:
@@ -133,7 +135,9 @@ class NUP_OT_SearchRefImage(bpy.types.Operator):
 
                 self.report({"INFO"}, f"{len(_search_results)}개 이미지를 찾았습니다")
             else:
-                self.report({"WARNING"}, "검색 결과가 없습니다")
+                err = _unsplash_mod.last_error
+                msg = f"검색 결과 없음: {err}" if err else "검색 결과가 없습니다"
+                self.report({"WARNING"}, msg)
 
             for area in context.screen.areas:
                 area.tag_redraw()

@@ -4,35 +4,36 @@ import json
 import os
 import ssl
 import tempfile
+import traceback
 import urllib.request
 import urllib.error
 
-# Unsplash 데모 API (시간당 50건)
 UNSPLASH_API = "https://api.unsplash.com/search/photos"
-UNSPLASH_ACCESS_KEY = "your-unsplash-access-key"  # 사용자가 설정하거나 데모 키 사용
+
+# 검색 에러 로그 (디버깅용)
+last_error: str = ""
 
 
 def search_images(query: str, access_key: str = "", per_page: int = 9) -> list[dict]:
     """Unsplash에서 이미지를 검색한다.
 
-    Args:
-        query: 검색어
-        access_key: Unsplash Access Key
-        per_page: 결과 개수 (최대 30)
-
     Returns:
         [{"id": str, "url_thumb": str, "url_regular": str, "description": str, "author": str}]
     """
-    key = access_key or UNSPLASH_ACCESS_KEY
-    if not key or key == "your-unsplash-access-key":
+    global last_error
+    last_error = ""
+
+    if not access_key:
+        last_error = "API 키가 비어있음"
+        print(f"[NUP Unsplash] {last_error}")
         return []
 
-    url = f"{UNSPLASH_API}?query={urllib.request.quote(query)}&per_page={per_page}&orientation=squarish"
+    url = f"{UNSPLASH_API}?query={urllib.request.quote(query)}&per_page={per_page}"
 
     req = urllib.request.Request(
         url,
         headers={
-            "Authorization": f"Client-ID {key}",
+            "Authorization": f"Client-ID {access_key}",
             "Accept-Version": "v1",
         },
     )
@@ -40,7 +41,8 @@ def search_images(query: str, access_key: str = "", per_page: int = 9) -> list[d
     try:
         ssl_ctx = ssl.create_default_context()
         with urllib.request.urlopen(req, timeout=15, context=ssl_ctx) as resp:
-            data = json.loads(resp.read().decode("utf-8"))
+            raw = resp.read().decode("utf-8")
+            data = json.loads(raw)
 
         results = []
         for item in data.get("results", []):
@@ -53,18 +55,34 @@ def search_images(query: str, access_key: str = "", per_page: int = 9) -> list[d
                 "description": item.get("alt_description", "") or item.get("description", "") or "",
                 "author": item.get("user", {}).get("name", ""),
             })
+
+        if not results:
+            last_error = f"검색 결과 0건 (query={query})"
+            print(f"[NUP Unsplash] {last_error}")
+
         return results
 
-    except (urllib.error.URLError, urllib.error.HTTPError, Exception):
+    except urllib.error.HTTPError as e:
+        body = ""
+        try:
+            body = e.read().decode("utf-8")[:200]
+        except Exception:
+            pass
+        last_error = f"HTTP {e.code}: {body}"
+        print(f"[NUP Unsplash] {last_error}")
+        return []
+    except urllib.error.URLError as e:
+        last_error = f"연결 오류: {e.reason}"
+        print(f"[NUP Unsplash] {last_error}")
+        return []
+    except Exception as e:
+        last_error = f"오류: {e}\n{traceback.format_exc()}"
+        print(f"[NUP Unsplash] {last_error}")
         return []
 
 
 def download_image(url: str, filename: str = "ref_image.jpg") -> str:
-    """URL에서 이미지를 다운로드하여 임시 파일 경로를 반환한다.
-
-    Returns:
-        로컬 파일 경로 또는 빈 문자열
-    """
+    """URL에서 이미지를 다운로드하여 임시 파일 경로를 반환한다."""
     if not url:
         return ""
 
@@ -80,5 +98,6 @@ def download_image(url: str, filename: str = "ref_image.jpg") -> str:
 
         return filepath
 
-    except (urllib.error.URLError, urllib.error.HTTPError, OSError):
+    except Exception as e:
+        print(f"[NUP Unsplash] 다운로드 실패: {e}")
         return ""
