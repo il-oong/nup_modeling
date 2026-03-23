@@ -1,4 +1,4 @@
-"""텍스트 입력 다이얼로그 오퍼레이터 (한글 입력 지원)"""
+"""텍스트 입력 다이얼로그 오퍼레이터 (한글 입력 지원 - 클립보드)"""
 
 import bpy
 
@@ -26,6 +26,7 @@ class NUP_OT_PromptDialog(bpy.types.Operator):
     def draw(self, context):
         layout = self.layout
         layout.prop(self, "prompt_text", text="")
+        layout.operator("nup.paste_to_prompt", text="클립보드 붙여넣기", icon="PASTEDOWN")
 
 
 class NUP_OT_ChatDialog(bpy.types.Operator):
@@ -51,3 +52,34 @@ class NUP_OT_ChatDialog(bpy.types.Operator):
     def draw(self, context):
         layout = self.layout
         layout.prop(self, "chat_text", text="")
+        layout.operator("nup.paste_to_chat", text="클립보드 붙여넣기", icon="PASTEDOWN")
+
+
+class NUP_OT_PasteToPrompt(bpy.types.Operator):
+    bl_idname = "nup.paste_to_prompt"
+    bl_label = "클립보드 → 요청"
+    bl_description = "클립보드 내용을 모델링 요청에 붙여넣습니다"
+
+    def execute(self, context):
+        clipboard = context.window_manager.clipboard
+        if clipboard:
+            context.scene.nup_prompt = clipboard
+            self.report({"INFO"}, f"붙여넣기 완료 ({len(clipboard)}자)")
+        else:
+            self.report({"WARNING"}, "클립보드가 비어있습니다")
+        return {"FINISHED"}
+
+
+class NUP_OT_PasteToChatInput(bpy.types.Operator):
+    bl_idname = "nup.paste_to_chat"
+    bl_label = "클립보드 → 수정요청"
+    bl_description = "클립보드 내용을 수정 요청에 붙여넣습니다"
+
+    def execute(self, context):
+        clipboard = context.window_manager.clipboard
+        if clipboard:
+            context.scene.nup_chat_input = clipboard
+            self.report({"INFO"}, f"붙여넣기 완료 ({len(clipboard)}자)")
+        else:
+            self.report({"WARNING"}, "클립보드가 비어있습니다")
+        return {"FINISHED"}

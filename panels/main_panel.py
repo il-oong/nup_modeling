@@ -63,7 +63,9 @@ class NUP_PT_MainPanel(bpy.types.Panel):
         # ── 요청 입력 ──
         box = layout.box()
         box.label(text="모델링 요청", icon="OUTLINER_OB_MESH")
-        box.prop(scene, "nup_prompt", text="")
+        row = box.row(align=True)
+        row.prop(scene, "nup_prompt", text="")
+        row.operator("nup.paste_to_prompt", text="", icon="PASTEDOWN")
 
         row = box.row(align=True)
         if scene.nup_is_running:

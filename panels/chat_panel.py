@@ -151,7 +151,9 @@ class NUP_PT_ChatPanel(bpy.types.Panel):
         layout.separator()
         box = layout.box()
         box.label(text="대화형 수정", icon="GREASEPENCIL")
-        box.prop(scene, "nup_chat_input", text="")
+        row = box.row(align=True)
+        row.prop(scene, "nup_chat_input", text="")
+        row.operator("nup.paste_to_chat", text="", icon="PASTEDOWN")
 
         row = box.row(align=True)
         row.enabled = not scene.nup_is_running
