@@ -52,6 +52,13 @@ SAFE_BUILTINS = {
     "Exception": Exception,
 }
 
+# Blender 4.x 전용 Principled BSDF 소켓명 (3.x에서 KeyError)
+_BSDF_4X_ONLY = frozenset({
+    "Subsurface Weight", "Specular IOR Level",
+    "Transmission Weight", "Coat Weight", "Coat Roughness",
+    "Emission Color", "Sheen Weight", "Sheen Roughness",
+})
+
 
 class TesterAgent(AgentBase):
     name = "Tester"
@@ -79,7 +86,7 @@ class TesterAgent(AgentBase):
         "- bm.to_mesh() 또는 bm.free() 누락 → 메모리 누수. [FAIL] 처리.\n"
         "- modifier_apply 전 mode_set(mode='OBJECT') 누락 → RuntimeError 가능. [FAIL] 처리.\n\n"
         "반드시 검사해야 할 실행 환경 오류 패턴:\n"
-        "- if __name__ == '__main__': 사용 → exec() 환경에서 NameError 발생. [FAIL] 처리.\n"
+        "- if __name__ == '__main__': 사용 → exec() 환경에서 실행 안 됨. [FAIL] 처리.\n"
         "- bpy.ops.object.select_all(action='SELECT') + delete() → 기존 작업물 삭제 위험. [FAIL] 처리.\n"
         "- bpy.context.collection.objects.new() → AttributeError. bpy.data.objects.new() + link() 사용해야 함. [FAIL] 처리.\n"
         "- bmesh.ops.create_cone(diameter1=...) → TypeError. radius1/radius2 사용해야 함. [FAIL] 처리.\n"
@@ -129,116 +136,11 @@ class TesterAgent(AgentBase):
                     return f"차단된 함수: {func.attr}() (라인 {node.lineno})"
 
         # 런타임 오류 패턴 정적 분석
-        error = TesterAgent._check_blender_patterns(tree, code)
+        error = _check_blender_patterns(tree, code)
         if error:
             return error
 
         return None
-
-    @staticmethod
-    def _check_blender_patterns(tree: ast.AST, code: str) -> str | None:
-        """알려진 Blender 런타임 오류 패턴을 AST로 검출한다."""
-        lines = code.splitlines()
-
-        for node in ast.walk(tree):
-            # --- 1. bmesh.ops.create_cone(diameter1=...) 검사 ---
-            if isinstance(node, ast.Call):
-                if _is_attr_call(node, "bmesh.ops", "create_cone"):
-                    for kw in node.keywords:
-                        if kw.arg in ("diameter1", "diameter2"):
-                            return (f"bmesh.ops.create_cone: diameter1/diameter2 사용 불가, "
-                                    f"radius1/radius2 사용 필요 (라인 {node.lineno})")
-
-                # --- 2. bpy.context.collection.objects.new() 검사 ---
-                if _is_attr_call(node, "bpy.context.collection.objects", "new"):
-                    return (f"bpy.context.collection.objects.new() 사용 불가, "
-                            f"bpy.data.objects.new() + link() 필요 (라인 {node.lineno})")
-
-                # --- 3. bpy.ops.node.new_geometry_nodes_modifier() 검사 ---
-                if _is_attr_call(node, "bpy.ops.node", "new_geometry_nodes_modifier"):
-                    return (f"bpy.ops.node.new_geometry_nodes_modifier() 컨텍스트 오류 위험, "
-                            f"수동 노드그룹 생성 필요 (라인 {node.lineno})")
-
-                # --- 4. face.vert_coords_get() 검사 ---
-                if isinstance(node.func, ast.Attribute) and node.func.attr == "vert_coords_get":
-                    return (f"vert_coords_get() 존재하지 않음, "
-                            f"[v.co for v in face.verts] 사용 필요 (라인 {node.lineno})")
-
-            # --- 5. BMesh 슬라이싱 검사 (bm.verts[:], bm.faces[a:b]) ---
-            if isinstance(node, ast.Subscript) and isinstance(node.slice, ast.Slice):
-                if isinstance(node.value, ast.Attribute):
-                    attr = node.value.attr
-                    if attr in ("verts", "faces", "edges"):
-                        # 부모가 bmesh 변수일 가능성 체크
-                        return (f"BMesh {attr} 슬라이싱 사용 불가 → TypeError 위험 "
-                                f"(라인 {node.lineno})")
-
-            # --- 6. Principled BSDF 직접 인덱싱 검사 ---
-            if isinstance(node, ast.Subscript) and isinstance(node.value, ast.Attribute):
-                if node.value.attr == "inputs" and isinstance(node.slice, ast.Constant):
-                    socket_name = node.slice.value
-                    # Blender 4.x 전용 소켓명을 3.x에서 쓰면 KeyError
-                    BSDF_4X_ONLY = {
-                        "Subsurface Weight", "Specular IOR Level",
-                        "Transmission Weight", "Coat Weight", "Coat Roughness",
-                        "Emission Color", "Sheen Weight", "Sheen Roughness",
-                    }
-                    if socket_name in BSDF_4X_ONLY:
-                        return (f"Principled BSDF 입력 '{socket_name}'은 Blender 4.x 전용, "
-                                f"3.x에서 KeyError 발생. in/.get()으로 확인 필요 (라인 {node.lineno})")
-
-        # --- 7. if __name__ == '__main__' 검사 ---
-        for node in ast.walk(tree):
-            if isinstance(node, ast.If):
-                test = node.test
-                if isinstance(test, ast.Compare):
-                    if (isinstance(test.left, ast.Name) and test.left.id == "__name__"
-                            and any(isinstance(c, ast.Constant) and c.value == "__main__"
-                                    for c in test.comparators)):
-                        return f"if __name__ == '__main__' 사용 금지 (라인 {node.lineno})"
-
-        # --- 8. 전체 삭제 패턴 검사 (select_all SELECT + delete) ---
-        for i, line in enumerate(lines, 1):
-            stripped = line.strip()
-            if "select_all(action='SELECT')" in stripped or 'select_all(action="SELECT")' in stripped:
-                # 다음 몇 줄 내에 delete()가 있는지
-                for j in range(i, min(i + 5, len(lines) + 1)):
-                    if j - 1 < len(lines) and "delete()" in lines[j - 1]:
-                        return f"전체 선택 후 삭제 패턴 감지 - 기존 작업물 삭제 위험 (라인 {i})"
-
-        # --- 9. 모디파이어 적용 루프 검사 (for mod in obj.modifiers + apply) ---
-        for node in ast.walk(tree):
-            if isinstance(node, ast.For):
-                # for mod in X.modifiers: ... modifier_apply 패턴
-                if (isinstance(node.iter, ast.Attribute) and node.iter.attr == "modifiers"):
-                    for inner in ast.walk(node):
-                        if (isinstance(inner, ast.Call) and isinstance(inner.func, ast.Attribute)
-                                and inner.func.attr == "modifier_apply"):
-                            return (f"for 루프에서 modifiers 순회 중 modifier_apply → "
-                                    f"컬렉션 변경으로 건너뜀 발생. while 사용 필요 (라인 {node.lineno})")
-
-        return None
-
-
-def _is_attr_call(call_node: ast.Call, obj_path: str, method: str) -> bool:
-    """AST Call 노드가 특정 객체.메서드() 호출인지 확인한다.
-    예: _is_attr_call(node, "bpy.ops.node", "new_geometry_nodes_modifier")
-    """
-    func = call_node.func
-    if not isinstance(func, ast.Attribute) or func.attr != method:
-        return False
-
-    # obj_path를 역순으로 매칭
-    parts = obj_path.split(".")
-    node = func.value
-    for part in reversed(parts):
-        if isinstance(node, ast.Attribute) and node.attr == part:
-            node = node.value
-        elif isinstance(node, ast.Name) and node.id == part:
-            return True
-        else:
-            return False
-    return True
 
     @staticmethod
     def execute_code(code: str) -> dict:
@@ -294,3 +196,97 @@ def _is_attr_call(call_node: ast.Call, obj_path: str, method: str) -> bool:
                 if "api_key" not in line.lower()
             )
             return {"success": False, "error": f"{type(e).__name__}: {e}\n{filtered_tb}"}
+
+
+# ── 정적 분석 헬퍼 (모듈 레벨 함수) ──
+
+def _check_blender_patterns(tree: ast.AST, code: str) -> str | None:
+    """알려진 Blender 런타임 오류 패턴을 AST로 검출한다."""
+    lines = code.splitlines()
+
+    for node in ast.walk(tree):
+        # --- 1. bmesh.ops.create_cone(diameter1=...) 검사 ---
+        if isinstance(node, ast.Call):
+            if _is_attr_call(node, "bmesh.ops", "create_cone"):
+                for kw in node.keywords:
+                    if kw.arg in ("diameter1", "diameter2"):
+                        return (f"bmesh.ops.create_cone: diameter1/diameter2 사용 불가, "
+                                f"radius1/radius2 사용 필요 (라인 {node.lineno})")
+
+            # --- 2. bpy.context.collection.objects.new() 검사 ---
+            if _is_attr_call(node, "bpy.context.collection.objects", "new"):
+                return (f"bpy.context.collection.objects.new() 사용 불가, "
+                        f"bpy.data.objects.new() + link() 필요 (라인 {node.lineno})")
+
+            # --- 3. bpy.ops.node.new_geometry_nodes_modifier() 검사 ---
+            if _is_attr_call(node, "bpy.ops.node", "new_geometry_nodes_modifier"):
+                return (f"bpy.ops.node.new_geometry_nodes_modifier() 컨텍스트 오류 위험, "
+                        f"수동 노드그룹 생성 필요 (라인 {node.lineno})")
+
+            # --- 4. face.vert_coords_get() 검사 ---
+            if isinstance(node.func, ast.Attribute) and node.func.attr == "vert_coords_get":
+                return (f"vert_coords_get() 존재하지 않음, "
+                        f"[v.co for v in face.verts] 사용 필요 (라인 {node.lineno})")
+
+        # --- 5. BMesh 슬라이싱 검사 (bm.verts[:], bm.faces[a:b]) ---
+        if isinstance(node, ast.Subscript) and isinstance(node.slice, ast.Slice):
+            if isinstance(node.value, ast.Attribute):
+                attr = node.value.attr
+                if attr in ("verts", "faces", "edges"):
+                    return (f"BMesh {attr} 슬라이싱 사용 불가 → TypeError 위험 "
+                            f"(라인 {node.lineno})")
+
+        # --- 6. Principled BSDF 직접 인덱싱 검사 ---
+        if isinstance(node, ast.Subscript) and isinstance(node.value, ast.Attribute):
+            if node.value.attr == "inputs" and isinstance(node.slice, ast.Constant):
+                socket_name = node.slice.value
+                if isinstance(socket_name, str) and socket_name in _BSDF_4X_ONLY:
+                    return (f"Principled BSDF 입력 '{socket_name}'은 Blender 4.x 전용, "
+                            f"3.x에서 KeyError 발생. in/.get()으로 확인 필요 (라인 {node.lineno})")
+
+    # --- 7. if __name__ == '__main__' 검사 ---
+    for node in ast.walk(tree):
+        if isinstance(node, ast.If) and isinstance(node.test, ast.Compare):
+            test = node.test
+            if (isinstance(test.left, ast.Name) and test.left.id == "__name__"
+                    and any(isinstance(c, ast.Constant) and c.value == "__main__"
+                            for c in test.comparators)):
+                return f"if __name__ == '__main__' 사용 금지 (라인 {node.lineno})"
+
+    # --- 8. 전체 삭제 패턴 검사 (select_all SELECT + delete) ---
+    for i, line in enumerate(lines, 1):
+        stripped = line.strip()
+        if "select_all(action='SELECT')" in stripped or 'select_all(action="SELECT")' in stripped:
+            for j in range(i, min(i + 5, len(lines) + 1)):
+                if j - 1 < len(lines) and "delete()" in lines[j - 1]:
+                    return f"전체 선택 후 삭제 패턴 감지 - 기존 작업물 삭제 위험 (라인 {i})"
+
+    # --- 9. 모디파이어 적용 루프 검사 (for mod in obj.modifiers + apply) ---
+    for node in ast.walk(tree):
+        if isinstance(node, ast.For):
+            if isinstance(node.iter, ast.Attribute) and node.iter.attr == "modifiers":
+                for inner in ast.walk(node):
+                    if (isinstance(inner, ast.Call) and isinstance(inner.func, ast.Attribute)
+                            and inner.func.attr == "modifier_apply"):
+                        return (f"for 루프에서 modifiers 순회 중 modifier_apply → "
+                                f"컬렉션 변경으로 건너뜀 발생. while 사용 필요 (라인 {node.lineno})")
+
+    return None
+
+
+def _is_attr_call(call_node: ast.Call, obj_path: str, method: str) -> bool:
+    """AST Call 노드가 특정 객체.메서드() 호출인지 확인한다."""
+    func = call_node.func
+    if not isinstance(func, ast.Attribute) or func.attr != method:
+        return False
+
+    parts = obj_path.split(".")
+    node = func.value
+    for part in reversed(parts):
+        if isinstance(node, ast.Attribute) and node.attr == part:
+            node = node.value
+        elif isinstance(node, ast.Name) and node.id == part:
+            return True
+        else:
+            return False
+    return True
