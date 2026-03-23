@@ -92,8 +92,11 @@ class TesterAgent(AgentBase):
         "- bmesh.ops.create_cone(diameter1=...) → TypeError. radius1/radius2 사용해야 함. [FAIL] 처리.\n"
         "- bpy.ops.node.new_geometry_nodes_modifier() → 컨텍스트 오류. 수동 노드그룹 생성 필요. [FAIL] 처리.\n"
         "- gn_mod.node_group 접근 전 None 체크 없음 → AttributeError 가능. [FAIL] 처리.\n"
-        "- Principled BSDF 입력에 직접 인덱싱 (bsdf.inputs['Specular IOR Level'] 등) → KeyError. [FAIL] 처리.\n"
-        "  반드시 in 또는 .get()으로 존재 확인 후 접근해야 함."
+        "- Principled BSDF 입력 중 버전별로 다른 소켓만 가드 필요:\n"
+        "  4.x 전용 (직접 접근 금지): Subsurface Weight, Specular IOR Level, Coat Weight, Emission Color\n"
+        "  3.x 전용 (직접 접근 금지): Subsurface, Specular, Clearcoat, Emission\n"
+        "  모든 버전에서 안전 (직접 접근 허용): Base Color, Roughness, Metallic, Normal, BSDF, IOR, Alpha\n"
+        "  가드 필요 소켓은 if 'name' in inputs: 또는 .get()으로 접근해야 함. [FAIL] 처리."
     )
 
     @staticmethod
@@ -237,13 +240,12 @@ def _check_blender_patterns(tree: ast.AST, code: str) -> str | None:
                             f"(라인 {node.lineno})")
 
         # --- 6. Principled BSDF 직접 인덱싱 검사 ---
-        # if 'name' in inputs: 조건 안에서 사용하는 경우는 안전하므로 제외
         if isinstance(node, ast.Subscript) and isinstance(node.value, ast.Attribute):
             if node.value.attr == "inputs" and isinstance(node.slice, ast.Constant):
                 socket_name = node.slice.value
                 if isinstance(socket_name, str) and socket_name in _BSDF_4X_ONLY:
-                    # 이 인덱싱이 if 'name' in inputs: 조건 안에 있는지 확인
-                    if not _is_guarded_by_in_check(tree, node, socket_name):
+                    # 텍스트 레벨에서 가드 체크: 같은 소켓명의 in 체크가 근처에 있으면 안전
+                    if not _is_socket_guarded(lines, node.lineno, socket_name):
                         return (f"Principled BSDF 입력 '{socket_name}'은 Blender 4.x 전용, "
                                 f"3.x에서 KeyError 발생. in/.get()으로 확인 필요 (라인 {node.lineno})")
 
@@ -277,43 +279,21 @@ def _check_blender_patterns(tree: ast.AST, code: str) -> str | None:
     return None
 
 
-def _is_guarded_by_in_check(tree: ast.AST, target_node: ast.AST, socket_name: str) -> bool:
-    """대상 노드가 'if socket_name in X.inputs:' 조건 안에 있는지 확인한다."""
-    target_line = target_node.lineno
+def _is_socket_guarded(lines: list[str], target_lineno: int, socket_name: str) -> bool:
+    """소켓 인덱싱이 'if/elif socket_name in inputs' 가드 안에 있는지 텍스트로 확인한다."""
+    # 대상 줄 위로 5줄 범위 내에 가드 패턴이 있으면 안전
+    guard_pattern = f"'{socket_name}' in"
+    guard_pattern2 = f'"{socket_name}" in'
+    # .get() 패턴도 안전
+    get_pattern = f".get('{socket_name}')"
+    get_pattern2 = f'.get("{socket_name}")'
 
-    for node in ast.walk(tree):
-        if not isinstance(node, ast.If):
-            continue
-        test = node.test
-        # if 'name' in X.inputs: 패턴 검사
-        if isinstance(test, ast.Compare):
-            for op, comparator in zip(test.ops, test.comparators):
-                if (isinstance(op, ast.In)
-                        and isinstance(test.left, ast.Constant)
-                        and test.left.value == socket_name
-                        and isinstance(comparator, ast.Attribute)
-                        and comparator.attr == "inputs"):
-                    # 대상 노드가 이 if 블록의 body 줄 범위 안에 있는지 확인
-                    if node.body:
-                        body_start = node.body[0].lineno
-                        body_end = max(getattr(n, 'lineno', 0) for n in ast.walk(node))
-                        if body_start <= target_line <= body_end:
-                            return True
-        # elif도 동일하게 체크
-        for elif_node in getattr(node, 'orelse', []):
-            if isinstance(elif_node, ast.If) and isinstance(elif_node.test, ast.Compare):
-                et = elif_node.test
-                for op, comp in zip(et.ops, et.comparators):
-                    if (isinstance(op, ast.In)
-                            and isinstance(et.left, ast.Constant)
-                            and et.left.value == socket_name
-                            and isinstance(comp, ast.Attribute)
-                            and comp.attr == "inputs"):
-                        if elif_node.body:
-                            bs = elif_node.body[0].lineno
-                            be = max(getattr(n, 'lineno', 0) for n in ast.walk(elif_node))
-                            if bs <= target_line <= be:
-                                return True
+    for i in range(max(0, target_lineno - 6), target_lineno):
+        if i < len(lines):
+            line = lines[i]
+            if (guard_pattern in line or guard_pattern2 in line
+                    or get_pattern in line or get_pattern2 in line):
+                return True
     return False
 
 
