@@ -8,6 +8,65 @@ POLY_RANGE = {
     "HIGHPOLY": "권장: 10,000 ~ 500,000",
 }
 
+# 에이전트별 평균 소요 시간 (초)
+_AGENT_TIME = {
+    "architect": 15,
+    "coder": 20,
+    "tester": 15,
+    "reviewer": 15,
+    "optimizer": 20,
+    "vfx": 25,
+    "retry": 30,    # 재시도 1회당
+    "exec": 5,      # 코드 실행
+}
+
+
+def _estimate_time(scene):
+    """설정 기반 예상 제작 시간을 문자열로 반환한다."""
+    # 기본 체인: Architect → Coder → Tester → Reviewer → Optimizer → exec
+    base = (
+        _AGENT_TIME["architect"]
+        + _AGENT_TIME["coder"]
+        + _AGENT_TIME["tester"]
+        + _AGENT_TIME["reviewer"]
+        + _AGENT_TIME["optimizer"]
+        + _AGENT_TIME["exec"]
+    )
+
+    # 하이폴리는 코드가 길어서 더 걸림
+    if scene.nup_output_style == "HIGHPOLY":
+        base = int(base * 1.5)
+
+    # VFX 활성화 시 추가
+    vfx_count = 0
+    if scene.nup_vfx_enabled:
+        for attr in ("nup_vfx_particle", "nup_vfx_physics", "nup_vfx_geonodes",
+                      "nup_vfx_compositing", "nup_vfx_shader", "nup_vfx_animation"):
+            if getattr(scene, attr, False):
+                vfx_count += 1
+        if vfx_count > 0:
+            base += _AGENT_TIME["vfx"] + _AGENT_TIME["tester"]  # VFX + 검증
+
+    # 재시도 횟수 (최악의 경우)
+    retries = scene.nup_max_retries
+    retry_time = _AGENT_TIME["retry"] * retries
+
+    # 참고 이미지 있으면 약간 더 (멀티모달)
+    if getattr(scene, "nup_ref_image_path", ""):
+        base += 10
+
+    total_min = base // 60
+    total_max = (base + retry_time) // 60
+
+    if total_min < 1:
+        total_min = 1
+    if total_max < 1:
+        total_max = 1
+
+    if total_min == total_max:
+        return f"약 {total_min}분"
+    return f"약 {total_min}~{total_max}분"
+
 
 class NUP_PT_MainPanel(bpy.types.Panel):
     bl_label = "NUP Modeling"
@@ -144,6 +203,10 @@ class NUP_PT_MainPanel(bpy.types.Panel):
         else:
             row.operator("nup.prompt_dialog", text="입력 (한글)", icon="GREASEPENCIL")
             row.operator("nup.run_chain", text="시작", icon="PLAY")
+
+        # ── 예상 제작 시간 ──
+        est = _estimate_time(scene)
+        box.label(text=f"예상 시간: {est}", icon="TIME")
 
         # ── 상태 ──
         if scene.nup_current_round > 0:
