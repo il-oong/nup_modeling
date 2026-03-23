@@ -237,12 +237,15 @@ def _check_blender_patterns(tree: ast.AST, code: str) -> str | None:
                             f"(라인 {node.lineno})")
 
         # --- 6. Principled BSDF 직접 인덱싱 검사 ---
+        # if 'name' in inputs: 조건 안에서 사용하는 경우는 안전하므로 제외
         if isinstance(node, ast.Subscript) and isinstance(node.value, ast.Attribute):
             if node.value.attr == "inputs" and isinstance(node.slice, ast.Constant):
                 socket_name = node.slice.value
                 if isinstance(socket_name, str) and socket_name in _BSDF_4X_ONLY:
-                    return (f"Principled BSDF 입력 '{socket_name}'은 Blender 4.x 전용, "
-                            f"3.x에서 KeyError 발생. in/.get()으로 확인 필요 (라인 {node.lineno})")
+                    # 이 인덱싱이 if 'name' in inputs: 조건 안에 있는지 확인
+                    if not _is_guarded_by_in_check(tree, node, socket_name):
+                        return (f"Principled BSDF 입력 '{socket_name}'은 Blender 4.x 전용, "
+                                f"3.x에서 KeyError 발생. in/.get()으로 확인 필요 (라인 {node.lineno})")
 
     # --- 7. if __name__ == '__main__' 검사 ---
     for node in ast.walk(tree):
@@ -272,6 +275,46 @@ def _check_blender_patterns(tree: ast.AST, code: str) -> str | None:
                                 f"컬렉션 변경으로 건너뜀 발생. while 사용 필요 (라인 {node.lineno})")
 
     return None
+
+
+def _is_guarded_by_in_check(tree: ast.AST, target_node: ast.AST, socket_name: str) -> bool:
+    """대상 노드가 'if socket_name in X.inputs:' 조건 안에 있는지 확인한다."""
+    target_line = target_node.lineno
+
+    for node in ast.walk(tree):
+        if not isinstance(node, ast.If):
+            continue
+        test = node.test
+        # if 'name' in X.inputs: 패턴 검사
+        if isinstance(test, ast.Compare):
+            for op, comparator in zip(test.ops, test.comparators):
+                if (isinstance(op, ast.In)
+                        and isinstance(test.left, ast.Constant)
+                        and test.left.value == socket_name
+                        and isinstance(comparator, ast.Attribute)
+                        and comparator.attr == "inputs"):
+                    # 대상 노드가 이 if 블록의 body 줄 범위 안에 있는지 확인
+                    if node.body:
+                        body_start = node.body[0].lineno
+                        body_end = max(getattr(n, 'lineno', 0) for n in ast.walk(node))
+                        if body_start <= target_line <= body_end:
+                            return True
+        # elif도 동일하게 체크
+        for elif_node in getattr(node, 'orelse', []):
+            if isinstance(elif_node, ast.If) and isinstance(elif_node.test, ast.Compare):
+                et = elif_node.test
+                for op, comp in zip(et.ops, et.comparators):
+                    if (isinstance(op, ast.In)
+                            and isinstance(et.left, ast.Constant)
+                            and et.left.value == socket_name
+                            and isinstance(comp, ast.Attribute)
+                            and comp.attr == "inputs"):
+                        if elif_node.body:
+                            bs = elif_node.body[0].lineno
+                            be = max(getattr(n, 'lineno', 0) for n in ast.walk(elif_node))
+                            if bs <= target_line <= be:
+                                return True
+    return False
 
 
 def _is_attr_call(call_node: ast.Call, obj_path: str, method: str) -> bool:
