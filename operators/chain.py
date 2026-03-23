@@ -22,11 +22,21 @@ def _get_output_settings(scene) -> dict:
     }
 
 
-def _get_api_key() -> str:
+def _get_prefs():
     prefs = bpy.context.preferences.addons.get(__package__.split(".")[0])
     if prefs:
-        return prefs.preferences.api_key
-    return ""
+        return prefs.preferences
+    return None
+
+
+def _get_api_key() -> str:
+    prefs = _get_prefs()
+    return prefs.api_key if prefs else ""
+
+
+def _get_model() -> str:
+    prefs = _get_prefs()
+    return prefs.model_name if prefs and prefs.model_name else "gemini-3-flash-preview"
 
 
 class NUP_OT_RunChain(bpy.types.Operator):
@@ -55,8 +65,9 @@ class NUP_OT_RunChain(bpy.types.Operator):
         global _chain_runner
         from ..core.chain_runner import ChainRunner
 
+        model = _get_model()
         if _chain_runner is None:
-            _chain_runner = ChainRunner(api_key, _get_output_settings(scene))
+            _chain_runner = ChainRunner(api_key, _get_output_settings(scene), model)
         else:
             _chain_runner.output_settings = _get_output_settings(scene)
 

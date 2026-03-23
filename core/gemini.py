@@ -4,10 +4,13 @@ import json
 import urllib.request
 import urllib.error
 
-API_URL = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent"
+# 모델명: gemini-2.0-flash, gemini-2.0-flash-preview, gemini-1.5-flash 등
+# 사용자 설정에서 변경 가능하도록 기본값 설정
+DEFAULT_MODEL = "gemini-3-flash-preview"
+API_BASE = "https://generativelanguage.googleapis.com/v1beta/models"
 
 
-def call_gemini(api_key: str, system_prompt: str, messages: list[dict]) -> str:
+def call_gemini(api_key: str, system_prompt: str, messages: list[dict], model: str = DEFAULT_MODEL) -> str:
     """Gemini API를 호출하여 응답 텍스트를 반환한다.
 
     Args:
@@ -37,7 +40,7 @@ def call_gemini(api_key: str, system_prompt: str, messages: list[dict]) -> str:
     }
 
     data = json.dumps(body).encode("utf-8")
-    url = f"{API_URL}?key={api_key}"
+    url = f"{API_BASE}/{model}:generateContent?key={api_key}"
 
     req = urllib.request.Request(
         url,

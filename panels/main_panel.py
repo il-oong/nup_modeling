@@ -45,6 +45,7 @@ class NUP_PT_MainPanel(bpy.types.Panel):
             row.operator("nup.stop_chain", text="중단", icon="CANCEL")
             row.label(text=f"라운드 {scene.nup_current_round} 진행 중...")
         else:
+            row.operator("nup.prompt_dialog", text="입력 (한글)", icon="GREASEPENCIL")
             row.operator("nup.run_chain", text="시작", icon="PLAY")
 
         # ── 상태 ──

@@ -34,9 +34,16 @@ class NUPModelingPreferences(bpy.types.AddonPreferences):
         default="",
     )
 
+    model_name: StringProperty(
+        name="Model",
+        description="Gemini 모델명 (예: gemini-3-flash-preview)",
+        default="gemini-3-flash-preview",
+    )
+
     def draw(self, context):
         layout = self.layout
         layout.prop(self, "api_key")
+        layout.prop(self, "model_name")
         if not self.api_key:
             layout.label(text="API 키를 입력하세요", icon="ERROR")
 

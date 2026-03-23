@@ -13,14 +13,15 @@ from ..agents.tester import TesterAgent as TesterCls
 class ChainRunner:
     """에이전트 체인을 순서대로 실행한다."""
 
-    def __init__(self, api_key: str, output_settings: dict):
+    def __init__(self, api_key: str, output_settings: dict, model: str = "gemini-3-flash-preview"):
         self.api_key = api_key
         self.output_settings = output_settings
-        self.architect = ArchitectAgent(api_key)
-        self.coder = CoderAgent(api_key)
-        self.tester = TesterAgent(api_key)
-        self.reviewer = ReviewerAgent(api_key)
-        self.optimizer = OptimizerAgent(api_key)
+        self.model = model
+        self.architect = ArchitectAgent(api_key, model)
+        self.coder = CoderAgent(api_key, model)
+        self.tester = TesterAgent(api_key, model)
+        self.reviewer = ReviewerAgent(api_key, model)
+        self.optimizer = OptimizerAgent(api_key, model)
 
         self.messages: list[dict] = []     # 전체 대화 히스토리
         self.log: list[dict] = []          # UI 표시용 로그

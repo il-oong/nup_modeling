@@ -56,6 +56,7 @@ class NUP_PT_ChatPanel(bpy.types.Panel):
         box.label(text="대화형 수정", icon="GREASEPENCIL")
         box.prop(scene, "nup_chat_input", text="")
 
-        row = box.row()
+        row = box.row(align=True)
         row.enabled = not scene.nup_is_running
+        row.operator("nup.chat_dialog", text="입력 (한글)", icon="GREASEPENCIL")
         row.operator("nup.send_chat", text="전송", icon="PLAY")
