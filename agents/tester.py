@@ -325,7 +325,12 @@ def _check_blender_patterns(tree: ast.AST, code: str) -> str | None:
                 return (f"bpy.ops.node.new_geometry_nodes_modifier() 컨텍스트 오류 위험, "
                         f"수동 노드그룹 생성 필요 (라인 {node.lineno})")
 
-            # --- 4. face.vert_coords_get() 검사 ---
+            # --- 4a. bm.from_mesh() 검사 (기존 데이터 초기화 위험) ---
+            if isinstance(node.func, ast.Attribute) and node.func.attr == "from_mesh":
+                return (f"bm.from_mesh() 사용 금지 - 기존 BMesh 데이터가 완전히 삭제됨. "
+                        f"대신 bmesh.ops로 같은 bm에 직접 추가 (라인 {node.lineno})")
+
+            # --- 4b. face.vert_coords_get() 검사 ---
             if isinstance(node.func, ast.Attribute) and node.func.attr == "vert_coords_get":
                 return (f"vert_coords_get() 존재하지 않음, "
                         f"[v.co for v in face.verts] 사용 필요 (라인 {node.lineno})")
