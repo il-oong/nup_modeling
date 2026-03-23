@@ -68,7 +68,8 @@ class TesterAgent(AgentBase):
         "- modifier_apply 전 mode_set(mode='OBJECT') 누락 → RuntimeError 가능. [FAIL] 처리.\n\n"
         "반드시 검사해야 할 실행 환경 오류 패턴:\n"
         "- if __name__ == '__main__': 사용 → exec() 환경에서 NameError 발생. [FAIL] 처리.\n"
-        "- bpy.ops.object.select_all(action='SELECT') + delete() → 기존 작업물 삭제 위험. [FAIL] 처리."
+        "- bpy.ops.object.select_all(action='SELECT') + delete() → 기존 작업물 삭제 위험. [FAIL] 처리.\n"
+        "- bpy.context.collection.objects.new() → AttributeError. bpy.data.objects.new() + link() 사용해야 함. [FAIL] 처리."
     )
 
     @staticmethod

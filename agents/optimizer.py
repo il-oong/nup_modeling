@@ -22,5 +22,7 @@ class OptimizerAgent(AgentBase):
         "- if __name__ == '__main__': 패턴 사용 금지. 코드는 exec()으로 실행된다.\n"
         "- clean_scene() / 전체 삭제 함수 사용 금지. 기존 오브젝트를 보존해야 한다.\n"
         "- bpy.ops.object.select_all(action='SELECT') + delete() 금지.\n"
-        "- 코드 시작은 bpy.ops.object.select_all(action='DESELECT')로 한다."
+        "- 코드 시작은 bpy.ops.object.select_all(action='DESELECT')로 한다.\n"
+        "- 오브젝트 생성: bpy.data.objects.new() + bpy.context.collection.objects.link() 사용.\n"
+        "- bpy.context.collection.objects.new() 사용 금지 (AttributeError 발생)."
     )
