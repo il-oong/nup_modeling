@@ -99,6 +99,11 @@ def register_properties():
         name="Running",
         default=False,
     )
+    bpy.types.Scene.nup_live_preview = BoolProperty(
+        name="실시간 미리보기",
+        description="모델링 과정을 실시간으로 뷰포트에 표시합니다",
+        default=True,
+    )
     bpy.types.Scene.nup_current_round = IntProperty(
         name="Current Round",
         default=0,
@@ -264,6 +269,7 @@ def unregister_properties():
         "nup_vfx_animation",
         "nup_output_purpose", "nup_output_format",
         "nup_output_max_polys", "nup_output_material",
+        "nup_live_preview",
         "nup_ref_image_path", "nup_ref_image_desc",
         "nup_ref_search_query", "nup_ref_search_results",
         "nup_messages", "nup_code_versions", "nup_active_code_version",

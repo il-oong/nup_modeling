@@ -177,7 +177,8 @@ class NUP_OT_RunChain(bpy.types.Operator):
             NUP_OT_RunChain._api_done = False
 
             if _chain_runner and _chain_runner.pending_exec:
-                result = _chain_runner.execute_pending()
+                live = getattr(scene, "nup_live_preview", False)
+                result = _chain_runner.execute_pending(live_preview=live)
                 _sync_log_to_scene(scene, _chain_runner)
                 _sync_code_versions(scene, _chain_runner)
 

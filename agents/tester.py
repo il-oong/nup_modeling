@@ -193,12 +193,111 @@ class TesterAgent(AgentBase):
             return {"success": False, "error": f"문법 오류 (라인 {e.lineno}): {e.msg}"}
         except Exception as e:
             tb = traceback.format_exc()
-            # 민감 정보 필터링
             filtered_tb = "\n".join(
                 line for line in tb.splitlines()
                 if "api_key" not in line.lower()
             )
             return {"success": False, "error": f"{type(e).__name__}: {e}\n{filtered_tb}"}
+
+    @staticmethod
+    def execute_code_stepwise(code: str, step_delay: float = 0.3) -> dict:
+        """코드를 최상위 문 단위로 나눠서 타이머로 순차 실행한다.
+
+        각 단계마다 뷰포트를 갱신하여 실시간 모델링 과정을 보여준다.
+
+        Returns:
+            {"success": bool, "error": str | None}
+        """
+        import bpy
+
+        safety_error = TesterAgent.check_code_safety(code)
+        if safety_error:
+            return {"success": False, "error": safety_error}
+
+        try:
+            tree = ast.parse(code)
+        except SyntaxError as e:
+            return {"success": False, "error": f"문법 오류 (라인 {e.lineno}): {e.msg}"}
+
+        # 최상위 문을 그룹으로 분할 (import/함수 정의는 한 그룹, 나머지는 개별)
+        groups = []
+        preamble = []  # import 및 함수/클래스 정의
+        for node in tree.body:
+            if isinstance(node, (ast.Import, ast.ImportFrom, ast.FunctionDef,
+                                  ast.ClassDef, ast.Assign)):
+                preamble.append(node)
+            else:
+                groups.append(node)
+
+        # preamble은 첫 번째 그룹으로
+        code_lines = code.splitlines(keepends=True)
+        chunks = []
+
+        if preamble:
+            # preamble 전체를 하나의 청크로
+            start = preamble[0].lineno - 1
+            end = preamble[-1].end_lineno
+            chunks.append("".join(code_lines[start:end]))
+
+        for node in groups:
+            start = node.lineno - 1
+            end = node.end_lineno
+            chunks.append("".join(code_lines[start:end]))
+
+        if not chunks:
+            chunks = [code]
+
+        # 공유 실행 환경 구성
+        import mathutils
+        import bmesh
+
+        _real_import = __builtins__.__import__ if hasattr(__builtins__, '__import__') else __import__
+
+        def _safe_import(name, globals=None, locals=None, fromlist=(), level=0):
+            root = name.split(".")[0]
+            if root not in ALLOWED_MODULES and name not in ALLOWED_MODULES:
+                raise ImportError(f"차단된 모듈: {name}")
+            return _real_import(name, globals, locals, fromlist, level)
+
+        safe_globals = dict(SAFE_BUILTINS)
+        safe_globals["bpy"] = bpy
+        safe_globals["mathutils"] = mathutils
+        safe_globals["bmesh"] = bmesh
+        safe_globals["math"] = math
+        safe_globals["__import__"] = _safe_import
+
+        exec_namespace = {"__builtins__": safe_globals, "__name__": "__nup_exec__"}
+
+        # 타이머로 순차 실행
+        _step_state = {"index": 0, "error": None, "done": False}
+
+        def _execute_next_step():
+            idx = _step_state["index"]
+            if idx >= len(chunks) or _step_state["error"]:
+                _step_state["done"] = True
+                return None  # 타이머 종료
+
+            try:
+                exec(chunks[idx], exec_namespace)
+                # 뷰포트 갱신
+                bpy.context.view_layer.update()
+                for area in bpy.context.screen.areas:
+                    if area.type == 'VIEW_3D':
+                        area.tag_redraw()
+            except Exception as e:
+                _step_state["error"] = f"{type(e).__name__}: {e}"
+                _step_state["done"] = True
+                return None
+
+            _step_state["index"] = idx + 1
+            if _step_state["index"] >= len(chunks):
+                _step_state["done"] = True
+                return None
+            return step_delay  # 다음 단계까지 대기 시간
+
+        bpy.app.timers.register(_execute_next_step, first_interval=0.1)
+        return {"success": True, "error": None, "stepwise": True,
+                "total_steps": len(chunks), "_state": _step_state}
 
 
 # ── 정적 분석 헬퍼 (모듈 레벨 함수) ──

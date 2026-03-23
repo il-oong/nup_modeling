@@ -131,6 +131,7 @@ class NUP_PT_MainPanel(bpy.types.Panel):
         col = box.column(align=True)
         col.prop(scene, "nup_max_rounds")
         col.prop(scene, "nup_max_retries")
+        col.prop(scene, "nup_live_preview", icon="PLAY")
 
         layout.separator()
 

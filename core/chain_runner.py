@@ -289,17 +289,21 @@ class ChainRunner:
 
         return self.get_log_snapshot()
 
-    def execute_pending(self) -> dict:
+    def execute_pending(self, live_preview: bool = False) -> dict:
         """대기 중인 코드를 메인 스레드에서 실행한다."""
         if not self.pending_exec:
             return {"success": False, "error": "실행할 코드가 없습니다"}
 
-        result = TesterAgent.execute_code(self.pending_exec)
-        if result["success"]:
+        if live_preview:
+            result = TesterAgent.execute_code_stepwise(self.pending_exec, step_delay=0.3)
+        else:
+            result = TesterAgent.execute_code(self.pending_exec)
+
+        if result.get("success"):
             self.latest_code = self.pending_exec
             self.code_versions.append(self.pending_exec)
             self._add_message("model", "Tester", "[PASS] 코드 실행 성공")
-        else:
+        elif not result.get("stepwise"):
             self._add_message("model", "Tester", f"[FAIL] 실행 오류: {result['error']}")
 
         self.exec_result = result
