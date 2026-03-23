@@ -243,14 +243,16 @@ class ChainRunner:
             self.messages.append({"role": "user", "text": opt_prompt})
             self.messages.append({"role": "model", "text": "[Optimizer] 최적화 완료"})
 
-        # 6. VFX (활성화된 경우)
+        # 6. VFX (활성화된 경우) - 실패해도 이전 코드 유지
         vfx_list = self.output_settings.get("vfx", [])
+        safe_code_backup = code  # VFX 실패 시 복원용
         if code and vfx_list:
             vfx_prompt = (
                 f"다음 모델링 코드에 VFX 이펙트를 추가해주세요.\n"
                 f"현재 코드:\n```python\n{code}\n```\n\n"
                 f"추가할 VFX: {', '.join(vfx_list)}\n\n"
-                f"기존 코드에 VFX 코드를 통합한 전체 코드를 작성해주세요."
+                f"기존 코드에 VFX 코드를 통합한 전체 코드를 작성해주세요.\n"
+                f"각 VFX 기능은 반드시 try/except로 감싸서 개별 실패가 전체를 멈추지 않도록 하세요."
             )
             vfx_msgs = self._build_agent_messages(vfx_prompt)
             vfx_response = self.vfx.run(vfx_msgs, self.output_settings)
@@ -260,14 +262,26 @@ class ChainRunner:
             if vfx_code:
                 safety_err = TesterAgent.check_code_safety(vfx_code)
                 if not safety_err:
-                    code = vfx_code
-                    self.pending_exec = code
-                    self._add_message("model", "VFX", "VFX 코드 적용됨")
+                    # VFX 코드를 Tester로 검증
+                    vfx_test_prompt = f"다음 VFX 코드를 검증해주세요:\n```python\n{vfx_code}\n```"
+                    vfx_test_msgs = self._build_agent_messages(vfx_test_prompt)
+                    vfx_test_response = self.tester.run(vfx_test_msgs, self.output_settings)
+                    self._add_message("model", "Tester", vfx_test_response)
+
+                    if "[PASS]" in vfx_test_response:
+                        code = vfx_code
+                        self.pending_exec = code
+                        self._add_message("model", "VFX", "VFX 코드 적용됨")
+                    else:
+                        # VFX 검증 실패 → 이전 코드 유지
+                        self._add_message("model", "VFX", "[WARNING] VFX 검증 실패 - VFX 없이 이전 코드 사용")
+                        code = safe_code_backup
+                        self.pending_exec = code
                 else:
                     self._add_message("model", "Tester", f"VFX 코드 안전성 실패 - 이전 버전 유지: {safety_err}")
 
             self.messages.append({"role": "user", "text": vfx_prompt})
-            self.messages.append({"role": "model", "text": "[VFX] 이펙트 추가 완료"})
+            self.messages.append({"role": "model", "text": "[VFX] 이펙트 처리 완료"})
 
         return self.get_log_snapshot()
 
