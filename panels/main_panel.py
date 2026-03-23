@@ -93,6 +93,38 @@ class NUP_PT_MainPanel(bpy.types.Panel):
             row.label(text=scene.nup_ref_image_path.split("\\")[-1].split("/")[-1], icon="CHECKMARK")
             row.operator("nup.clear_ref_image", text="", icon="X")
 
+        # 검색 결과를 패널에 직접 표시
+        results = scene.nup_ref_search_results
+        if results:
+            box.separator()
+            box.label(text=f"검색 결과: {len(results)}개", icon="VIEWZOOM")
+            grid = box.grid_flow(row_major=True, columns=3, even_columns=True, even_rows=True)
+            for i, item in enumerate(results):
+                item_box = grid.box()
+                col = item_box.column(align=True)
+
+                # 썸네일 표시
+                thumb_name = f"nup_thumb_{item.image_id}"
+                thumb_img = bpy.data.images.get(thumb_name)
+                icon_id = 0
+                if thumb_img:
+                    if thumb_img.preview is None:
+                        thumb_img.preview_ensure()
+                    if thumb_img.preview:
+                        icon_id = thumb_img.preview.icon_id
+
+                if icon_id > 0:
+                    col.template_icon(icon_value=icon_id, scale=5.0)
+                else:
+                    sub = col.box()
+                    sub.scale_y = 3.0
+                    sub.label(text="...", icon="IMAGE_DATA")
+
+                desc = item.description[:25] if item.description else f"#{i+1}"
+                col.label(text=desc)
+                op = col.operator("nup.select_ref_image", text="선택", icon="CHECKMARK")
+                op.index = i
+
         # 이미지 설명 (아이디어 입력)
         box.prop(scene, "nup_ref_image_desc", text="설명")
 

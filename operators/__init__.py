@@ -8,7 +8,6 @@ from .ref_image import (
     NUP_OT_SearchRefImage,
     NUP_OT_SelectRefImage,
     NUP_OT_ClearRefImage,
-    NUP_OT_RefImagePicker,
 )
 
 classes = [
@@ -26,7 +25,6 @@ classes = [
     NUP_OT_SearchRefImage,
     NUP_OT_SelectRefImage,
     NUP_OT_ClearRefImage,
-    NUP_OT_RefImagePicker,
 ]
 
 

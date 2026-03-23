@@ -19,7 +19,7 @@ _THUMB_PREFIX = "nup_thumb_"
 
 
 def _cleanup_old_thumbs():
-    """이전 검색의 썸네일 이미지를 Blender에서 제거한다."""
+    """이전 검색의 미사용 썸네일 이미지를 Blender에서 제거한다."""
     to_remove = [img for img in bpy.data.images
                  if img.name.startswith(_THUMB_PREFIX) and img.users == 0]
     for img in to_remove:
@@ -132,8 +132,6 @@ class NUP_OT_SearchRefImage(bpy.types.Operator):
                         _load_thumb_to_blender(item["id"], thumb_path)
 
                 self.report({"INFO"}, f"{len(_search_results)}개 이미지를 찾았습니다")
-                # modal 종료 후 안전하게 팝업 열기
-                bpy.app.timers.register(_deferred_open_picker, first_interval=0.1)
             else:
                 self.report({"WARNING"}, "검색 결과가 없습니다")
 
@@ -149,38 +147,31 @@ class NUP_OT_SearchRefImage(bpy.types.Operator):
             self._timer = None
 
 
-def _deferred_open_picker():
-    """modal 종료 후 안전한 컨텍스트에서 팝업을 연다."""
-    try:
-        bpy.ops.nup.ref_image_picker("INVOKE_DEFAULT")
-    except RuntimeError:
-        pass
-    return None
-
-
-# 이미지 선택 후 다운로드 완료 콜백용 상태
+# 이미지 선택 비동기 다운로드 상태
 _select_download_done = False
 _select_download_path = ""
 _select_download_desc = ""
 
 
 def _check_select_download():
-    """이미지 다운로드 완료를 폴링하여 scene에 반영한다."""
+    """이미지 다운로드 완료를 확인하여 scene에 반영한다."""
     global _select_download_done
     if not _select_download_done:
-        return 0.2  # 0.2초 후 재시도
+        return 0.2
 
     scene = bpy.context.scene
     if _select_download_path:
         scene.nup_ref_image_path = _select_download_path
         if _select_download_desc and not scene.nup_ref_image_desc:
             scene.nup_ref_image_desc = _select_download_desc
+        # 선택 완료 후 검색 결과 비우기
+        scene.nup_ref_search_results.clear()
 
     for area in bpy.context.screen.areas:
         area.tag_redraw()
 
     _select_download_done = False
-    return None  # 타이머 종료
+    return None
 
 
 class NUP_OT_SelectRefImage(bpy.types.Operator):
@@ -201,7 +192,6 @@ class NUP_OT_SelectRefImage(bpy.types.Operator):
 
         item = results[self.index]
 
-        # 백그라운드 다운로드 시작 (UI 블로킹 없음)
         global _select_download_done, _select_download_path, _select_download_desc
         _select_download_done = False
         _select_download_path = ""
@@ -214,11 +204,8 @@ class NUP_OT_SelectRefImage(bpy.types.Operator):
         )
         thread.start()
 
-        # 타이머로 다운로드 완료 폴링
         bpy.app.timers.register(_check_select_download, first_interval=0.2)
-
         self.report({"INFO"}, "이미지 다운로드 중...")
-        # FINISHED 반환 → 팝업이 즉시 닫힘
         return {"FINISHED"}
 
     @staticmethod
@@ -238,60 +225,6 @@ class NUP_OT_ClearRefImage(bpy.types.Operator):
         scene = context.scene
         scene.nup_ref_image_path = ""
         scene.nup_ref_image_desc = ""
+        scene.nup_ref_search_results.clear()
         self.report({"INFO"}, "참고 이미지가 제거되었습니다")
         return {"FINISHED"}
-
-
-class NUP_OT_RefImagePicker(bpy.types.Operator):
-    """검색 결과를 썸네일 미리보기와 함께 팝업으로 표시한다"""
-    bl_idname = "nup.ref_image_picker"
-    bl_label = "참고 이미지 선택"
-    bl_options = {"REGISTER", "INTERNAL"}
-
-    def execute(self, context):
-        return {"FINISHED"}
-
-    def invoke(self, context, event):
-        return context.window_manager.invoke_popup(self, width=520)
-
-    def draw(self, context):
-        layout = self.layout
-        scene = context.scene
-        results = scene.nup_ref_search_results
-
-        if not results:
-            layout.label(text="검색 결과가 없습니다", icon="INFO")
-            return
-
-        layout.label(text=f"검색 결과: {len(results)}개 (클릭하여 선택)", icon="IMAGE_DATA")
-        layout.separator()
-
-        grid = layout.grid_flow(row_major=True, columns=3, even_columns=True, even_rows=True)
-
-        for i, item in enumerate(results):
-            box = grid.box()
-            col = box.column(align=True)
-
-            # 썸네일 이미지 표시
-            thumb_name = f"{_THUMB_PREFIX}{item.image_id}"
-            thumb_img = bpy.data.images.get(thumb_name)
-            icon_id = 0
-            if thumb_img:
-                if thumb_img.preview is None:
-                    thumb_img.preview_ensure()
-                if thumb_img.preview:
-                    icon_id = thumb_img.preview.icon_id
-
-            if icon_id > 0:
-                col.template_icon(icon_value=icon_id, scale=6.0)
-            else:
-                box2 = col.box()
-                box2.scale_y = 4.0
-                box2.label(text="로딩 중...", icon="IMAGE_DATA")
-
-            desc_text = item.description[:30] if item.description else f"이미지 {i + 1}"
-            col.label(text=desc_text)
-            col.label(text=f"by {item.author}", icon="USER")
-
-            op = col.operator("nup.select_ref_image", text="선택", icon="CHECKMARK")
-            op.index = i
