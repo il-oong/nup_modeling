@@ -115,6 +115,7 @@ def register_properties():
             ("RENDER", "렌더링", "Rendering"),
             ("PRINT3D", "3D 프린팅", "3D printing"),
             ("ANIMATION", "애니메이션", "Animation"),
+            ("VIDEO", "영상", "Video / motion graphics"),
         ],
         default="GAME",
     )
@@ -126,6 +127,7 @@ def register_properties():
             ("OBJ", ".obj", "OBJ format"),
             ("STL", ".stl", "STL format"),
             ("GLTF", ".glTF", "glTF format"),
+            ("MP4", ".mp4", "MP4 video"),
         ],
         default="FBX",
     )

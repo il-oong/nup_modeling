@@ -35,6 +35,13 @@ class NUP_OT_ExportModel(bpy.types.Operator):
                 bpy.ops.export_scene.gltf(filepath=filepath + ".glb", use_selection=True)
             elif fmt == "BLEND":
                 bpy.ops.wm.save_as_mainfile(filepath=filepath + ".blend")
+            elif fmt == "MP4":
+                # 영상 렌더링
+                scene.render.filepath = filepath
+                scene.render.image_settings.file_format = "FFMPEG"
+                scene.render.ffmpeg.format = "MPEG4"
+                scene.render.ffmpeg.codec = "H264"
+                bpy.ops.render.render(animation=True)
 
             self.report({"INFO"}, f"{fmt} 내보내기 완료")
         except Exception as e:
