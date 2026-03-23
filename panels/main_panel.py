@@ -2,6 +2,12 @@
 
 import bpy
 
+# 스타일별 폴리곤 범위 참고 텍스트
+POLY_RANGE = {
+    "LOWPOLY": "권장: 100 ~ 5,000",
+    "HIGHPOLY": "권장: 10,000 ~ 500,000",
+}
+
 
 class NUP_PT_MainPanel(bpy.types.Panel):
     bl_label = "NUP Modeling"
@@ -14,14 +20,33 @@ class NUP_PT_MainPanel(bpy.types.Panel):
         layout = self.layout
         scene = context.scene
 
-        # ── 아웃풋 설정 ──
+        # ── 스타일 설정 ──
         box = layout.box()
-        box.label(text="아웃풋 설정", icon="OUTPUT")
+        box.label(text="스타일", icon="SHADING_SOLID")
+
+        # 폴리곤 밀도 (로우폴리/하이폴리)
+        row = box.row(align=True)
+        row.prop(scene, "nup_output_style", expand=True)
+
+        # 폴리곤 수 (스타일에 따라 범위 표시)
         col = box.column(align=True)
-        col.prop(scene, "nup_output_style")
+        col.prop(scene, "nup_output_max_polys")
+        poly_hint = POLY_RANGE.get(scene.nup_output_style, "")
+        if poly_hint:
+            col.label(text=poly_hint, icon="INFO")
+
+        box.separator()
+
+        # 테마 (카툰/실사/게임에셋 등)
+        box.label(text="테마", icon="BRUSH_DATA")
+        box.prop(scene, "nup_output_theme", text="")
+
+        # ── 용도 & 포맷 ──
+        box = layout.box()
+        box.label(text="출력", icon="OUTPUT")
+        col = box.column(align=True)
         col.prop(scene, "nup_output_purpose")
         col.prop(scene, "nup_output_format")
-        col.prop(scene, "nup_output_max_polys")
         col.prop(scene, "nup_output_material")
 
         layout.separator()

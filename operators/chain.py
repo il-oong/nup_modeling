@@ -15,6 +15,7 @@ def get_chain_runner():
 def _get_output_settings(scene) -> dict:
     return {
         "style": scene.nup_output_style,
+        "theme": scene.nup_output_theme,
         "purpose": scene.nup_output_purpose,
         "format": scene.nup_output_format,
         "max_polys": scene.nup_output_max_polys,

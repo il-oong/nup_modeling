@@ -18,9 +18,10 @@ class AgentBase:
         if output_settings:
             settings_text = (
                 f"\n\n[아웃풋 목표]\n"
-                f"- 스타일: {output_settings.get('style', 'N/A')}\n"
+                f"- 폴리곤: {output_settings.get('style', 'N/A')}\n"
+                f"- 테마: {output_settings.get('theme', 'N/A')}\n"
                 f"- 용도: {output_settings.get('purpose', 'N/A')}\n"
-                f"- 최대 폴리곤: {output_settings.get('max_polys', 'N/A')}\n"
+                f"- 최대 폴리곤 수: {output_settings.get('max_polys', 'N/A')}\n"
                 f"- 내보내기 포맷: {output_settings.get('format', 'N/A')}\n"
                 f"- 머티리얼: {'포함' if output_settings.get('material') else '미포함'}"
             )

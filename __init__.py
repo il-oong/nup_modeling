@@ -97,30 +97,64 @@ def register_properties():
         max=5,
     )
 
-    # 아웃풋 설정
+    # 아웃풋 설정 - 스타일 (로우폴리/하이폴리)
+    def _on_style_update(self, context):
+        """스타일 변경 시 폴리곤 기본값 자동 변경"""
+        scene = context.scene
+        if scene.nup_output_style == "LOWPOLY":
+            scene.nup_output_max_polys = 1000
+        elif scene.nup_output_style == "HIGHPOLY":
+            scene.nup_output_max_polys = 100000
+
     bpy.types.Scene.nup_output_style = EnumProperty(
-        name="Style",
+        name="폴리곤",
+        description="폴리곤 밀도",
         items=[
-            ("LOWPOLY", "로우폴리", "Low polygon style"),
-            ("HIGHPOLY", "하이폴리", "High polygon detailed"),
-            ("CARTOON", "카툰", "Cartoon/stylized"),
-            ("REALISTIC", "리얼리스틱", "Realistic style"),
+            ("LOWPOLY", "로우폴리", "Low polygon (100~5,000)"),
+            ("HIGHPOLY", "하이폴리", "High polygon (10,000~500,000)"),
         ],
         default="LOWPOLY",
+        update=_on_style_update,
     )
-    bpy.types.Scene.nup_output_purpose = EnumProperty(
-        name="Purpose",
+    bpy.types.Scene.nup_output_max_polys = IntProperty(
+        name="Max Polygons",
+        description="최대 폴리곤 수",
+        default=1000,
+        min=100,
+        max=500000,
+    )
+
+    # 테마 (시각적 스타일)
+    bpy.types.Scene.nup_output_theme = EnumProperty(
+        name="테마",
+        description="시각적 스타일",
         items=[
-            ("GAME", "게임 에셋", "Game asset"),
-            ("RENDER", "렌더링", "Rendering"),
+            ("CARTOON", "카툰", "Cartoon / Stylized"),
+            ("REALISTIC", "실사", "Realistic / Photorealistic"),
+            ("GAME_ASSET", "게임 에셋", "Game-ready asset"),
+            ("ANIME", "애니메", "Anime style"),
+            ("VOXEL", "복셀", "Voxel / Minecraft style"),
+            ("FLAT", "플랫", "Flat / Minimal"),
+        ],
+        default="GAME_ASSET",
+    )
+
+    # 용도
+    bpy.types.Scene.nup_output_purpose = EnumProperty(
+        name="용도",
+        items=[
+            ("GAME", "게임", "Game engine (Unity/Unreal)"),
+            ("RENDER", "렌더링", "Rendering / Illustration"),
             ("PRINT3D", "3D 프린팅", "3D printing"),
-            ("ANIMATION", "애니메이션", "Animation"),
-            ("VIDEO", "영상", "Video / motion graphics"),
+            ("ANIMATION", "애니메이션", "Animation / Rigging"),
+            ("VIDEO", "영상", "Video / Motion graphics"),
         ],
         default="GAME",
     )
+
+    # 내보내기 포맷
     bpy.types.Scene.nup_output_format = EnumProperty(
-        name="Format",
+        name="포맷",
         items=[
             ("BLEND", ".blend", "Blender file"),
             ("FBX", ".fbx", "FBX format"),
@@ -130,12 +164,6 @@ def register_properties():
             ("MP4", ".mp4", "MP4 video"),
         ],
         default="FBX",
-    )
-    bpy.types.Scene.nup_output_max_polys = IntProperty(
-        name="Max Polygons",
-        description="최대 폴리곤 수 (0 = 제한 없음)",
-        default=10000,
-        min=0,
     )
     bpy.types.Scene.nup_output_material = BoolProperty(
         name="Include Material",
@@ -153,8 +181,8 @@ def unregister_properties():
     props = [
         "nup_prompt", "nup_chat_input", "nup_is_running",
         "nup_current_round", "nup_max_rounds", "nup_max_retries",
-        "nup_output_style", "nup_output_purpose", "nup_output_format",
-        "nup_output_max_polys", "nup_output_material",
+        "nup_output_style", "nup_output_theme", "nup_output_purpose",
+        "nup_output_format", "nup_output_max_polys", "nup_output_material",
         "nup_messages", "nup_code_versions", "nup_active_code_version",
     ]
     for p in props:
