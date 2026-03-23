@@ -15,6 +15,14 @@ BLOCKED_MODULES = frozenset({
     "multiprocessing", "signal",
 })
 
+# exec() 내에서 import 허용할 모듈
+ALLOWED_MODULES = frozenset({
+    "bpy", "bmesh", "mathutils", "math", "random",
+    "collections", "functools", "itertools",
+    "bpy.types", "bpy.props", "bpy.ops",
+    "mathutils.noise",
+})
+
 # exec()에서 허용할 안전한 builtins만
 SAFE_BUILTINS = {
     "True": True, "False": False, "None": None,
@@ -119,12 +127,22 @@ class TesterAgent(AgentBase):
             except RuntimeError:
                 pass  # context가 맞지 않는 경우 무시
 
+            # 허용된 모듈만 import 가능한 커스텀 __import__
+            _real_import = __builtins__.__import__ if hasattr(__builtins__, '__import__') else __import__
+
+            def _safe_import(name, globals=None, locals=None, fromlist=(), level=0):
+                root = name.split(".")[0]
+                if root not in ALLOWED_MODULES and name not in ALLOWED_MODULES:
+                    raise ImportError(f"차단된 모듈: {name}")
+                return _real_import(name, globals, locals, fromlist, level)
+
             # 안전한 globals로 실행
             safe_globals = dict(SAFE_BUILTINS)
             safe_globals["bpy"] = bpy
             safe_globals["mathutils"] = mathutils
             safe_globals["bmesh"] = bmesh
             safe_globals["math"] = math
+            safe_globals["__import__"] = _safe_import
 
             exec(code, {"__builtins__": safe_globals})
             return {"success": True, "error": None}
