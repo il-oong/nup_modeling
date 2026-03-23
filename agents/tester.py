@@ -58,7 +58,14 @@ class TesterAgent(AgentBase):
         "- 오류가 있으면 구체적으로 어떤 줄에서 무엇이 잘못되었는지 설명한다.\n"
         "- 오류가 없으면 'PASS'라고 명시한다.\n"
         "- 한국어로 답변한다.\n"
-        "- 결과를 [PASS] 또는 [FAIL]로 시작한다."
+        "- 결과를 [PASS] 또는 [FAIL]로 시작한다.\n\n"
+        "반드시 검사해야 할 BMesh 오류 패턴:\n"
+        "- bm.verts[:], bm.faces[:], bm.edges[:] 슬라이싱 → TypeError 발생. [FAIL] 처리.\n"
+        "- bm.verts[a:b], bm.faces[a:b] 범위 슬라이싱 → TypeError 발생. [FAIL] 처리.\n"
+        "- bm.faces.get(), bm.verts.get() → AttributeError 발생. [FAIL] 처리.\n"
+        "- ensure_lookup_table() 없이 인덱스 접근 → IndexError 가능. [FAIL] 처리.\n"
+        "- bm.to_mesh() 또는 bm.free() 누락 → 메모리 누수. [FAIL] 처리.\n"
+        "- modifier_apply 전 mode_set(mode='OBJECT') 누락 → RuntimeError 가능. [FAIL] 처리."
     )
 
     @staticmethod

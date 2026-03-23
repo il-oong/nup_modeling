@@ -31,7 +31,9 @@ class AgentBase:
             prompt += settings_text
         return prompt
 
-    def run(self, messages: list[dict], output_settings: dict | None = None) -> str:
+    def run(self, messages: list[dict], output_settings: dict | None = None,
+            image_path: str = "") -> str:
         """에이전트를 실행하여 응답을 반환한다."""
         system_prompt = self.build_system_prompt(output_settings)
-        return call_gemini(self.api_key, system_prompt, messages, model=self.model)
+        return call_gemini(self.api_key, system_prompt, messages,
+                           model=self.model, image_path=image_path)

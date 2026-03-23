@@ -4,6 +4,12 @@ from .chat import NUP_OT_SendChat
 from .export import NUP_OT_ExportModel, NUP_OT_CopyCode
 from .dialog import NUP_OT_PromptDialog, NUP_OT_ChatDialog, NUP_OT_PasteToPrompt, NUP_OT_PasteToChatInput
 from .utils import NUP_OT_CopyLog, NUP_OT_ClearMessages
+from .ref_image import (
+    NUP_OT_SearchRefImage,
+    NUP_OT_SelectRefImage,
+    NUP_OT_ClearRefImage,
+    NUP_OT_RefImagePicker,
+)
 
 classes = [
     NUP_OT_RunChain,
@@ -17,6 +23,10 @@ classes = [
     NUP_OT_ClearMessages,
     NUP_OT_PasteToPrompt,
     NUP_OT_PasteToChatInput,
+    NUP_OT_SearchRefImage,
+    NUP_OT_SelectRefImage,
+    NUP_OT_ClearRefImage,
+    NUP_OT_RefImagePicker,
 ]
 
 

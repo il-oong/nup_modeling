@@ -127,11 +127,15 @@ class NUP_OT_RunChain(bpy.types.Operator):
         scene.nup_is_running = True
         scene.nup_current_round += 1
 
+        # 참고 이미지 정보
+        ref_image = getattr(scene, "nup_ref_image_path", "")
+        ref_desc = getattr(scene, "nup_ref_image_desc", "")
+
         NUP_OT_RunChain._api_done = False
         NUP_OT_RunChain._running = True
         NUP_OT_RunChain._thread = threading.Thread(
             target=self._run_api_thread,
-            args=(prompt, scene.nup_max_retries),
+            args=(prompt, scene.nup_max_retries, ref_image, ref_desc),
             daemon=True,
         )
         NUP_OT_RunChain._thread.start()
@@ -140,10 +144,14 @@ class NUP_OT_RunChain(bpy.types.Operator):
         context.window_manager.modal_handler_add(self)
         return {"RUNNING_MODAL"}
 
-    def _run_api_thread(self, prompt, max_retries):
+    def _run_api_thread(self, prompt, max_retries, image_path="", image_desc=""):
         global _chain_runner
         try:
-            _chain_runner.run_chain_api_only(prompt, max_retries)
+            _chain_runner.run_chain_api_only(
+                prompt, max_retries,
+                image_path=image_path,
+                image_description=image_desc,
+            )
         except Exception as e:
             _chain_runner._add_message("model", "System", f"오류: {e}")
         NUP_OT_RunChain._api_done = True

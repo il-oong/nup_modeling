@@ -75,6 +75,29 @@ class NUP_PT_MainPanel(bpy.types.Panel):
 
         layout.separator()
 
+        # ── 참고 이미지 ──
+        box = layout.box()
+        box.label(text="참고 이미지", icon="IMAGE_DATA")
+
+        # 로컬 파일 선택
+        box.prop(scene, "nup_ref_image_path", text="파일")
+
+        # Unsplash 검색
+        row = box.row(align=True)
+        row.prop(scene, "nup_ref_search_query", text="")
+        row.operator("nup.search_ref_image", text="", icon="VIEWZOOM")
+
+        # 선택된 이미지 표시
+        if scene.nup_ref_image_path:
+            row = box.row(align=True)
+            row.label(text=scene.nup_ref_image_path.split("\\")[-1].split("/")[-1], icon="CHECKMARK")
+            row.operator("nup.clear_ref_image", text="", icon="X")
+
+        # 이미지 설명 (아이디어 입력)
+        box.prop(scene, "nup_ref_image_desc", text="설명")
+
+        layout.separator()
+
         # ── 요청 입력 ──
         box = layout.box()
         box.label(text="모델링 요청", icon="OUTLINER_OB_MESH")

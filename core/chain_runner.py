@@ -84,16 +84,24 @@ class ChainRunner:
                 merged.append(dict(msg))
         return merged
 
-    def run_chain_api_only(self, user_prompt: str, max_retries: int = 3) -> list[dict]:
+    def run_chain_api_only(self, user_prompt: str, max_retries: int = 3,
+                           image_path: str = "", image_description: str = "") -> list[dict]:
         """체인에서 API 호출만 수행한다 (스레드 안전).
         exec()은 수행하지 않고, AI Tester의 코드 분석만 진행한다.
         """
         self.log = []
         code = None
 
+        # 참고 이미지 + 설명이 있으면 프롬프트에 추가
+        full_prompt = user_prompt
+        if image_path:
+            self._add_message("model", "System", f"참고 이미지: {image_path}")
+        if image_description:
+            full_prompt += f"\n\n[참고 이미지에 대한 추가 설명]\n{image_description}"
+
         # 1. Architect
-        arch_msgs = self._build_agent_messages(user_prompt)
-        arch_response = self.architect.run(arch_msgs, self.output_settings)
+        arch_msgs = self._build_agent_messages(full_prompt)
+        arch_response = self.architect.run(arch_msgs, self.output_settings, image_path=image_path)
         self._add_message("model", "Architect", arch_response)
         self.messages.append({"role": "user", "text": user_prompt})
         self.messages.append({"role": "model", "text": f"[Architect] {arch_response}"})
@@ -106,8 +114,11 @@ class ChainRunner:
         if self.latest_code:
             coder_prompt += f"\n\n이전 코드:\n```python\n{self.latest_code}\n```"
 
+        if image_description:
+            coder_prompt += f"\n\n[참고 이미지 설명]\n{image_description}"
+
         coder_msgs = self._build_agent_messages(coder_prompt)
-        coder_response = self.coder.run(coder_msgs, self.output_settings)
+        coder_response = self.coder.run(coder_msgs, self.output_settings, image_path=image_path)
         self._add_message("model", "Coder", coder_response, is_code=True)
         self.messages.append({"role": "user", "text": coder_prompt})
         self.messages.append({"role": "model", "text": f"[Coder] {coder_response}"})
@@ -177,9 +188,8 @@ class ChainRunner:
             if tester_passed:
                 self.pending_exec = code
             else:
-                # Tester 통과 못한 코드는 실행하지 않음 - 그래도 시도는 해봄
-                self._add_message("model", "Tester", "[WARNING] Tester 미통과 코드 - 실행 시도합니다")
-                self.pending_exec = code
+                self._add_message("model", "Tester", "[BLOCKED] Tester 미통과 - 코드 실행을 차단합니다")
+                self.pending_exec = None
             self.messages.append({"role": "user", "text": tester_prompt})
             self.messages.append({"role": "model", "text": "[Tester] 코드 분석 완료"})
         else:
@@ -308,21 +318,38 @@ class ChainRunner:
                 tester_response = self.tester.run(tester_msgs, self.output_settings)
                 self._add_message("model", "Tester", tester_response)
 
-                if "[FAIL]" in tester_response:
+                tester_passed = "[PASS]" in tester_response
+
+                if not tester_passed:
                     for attempt in range(max_retries):
                         fix_prompt = (
-                            f"오류:\n{tester_response}\n\n"
-                            f"코드:\n```python\n{code}\n```\n\n수정해주세요."
+                            f"Tester가 다음 오류를 발견했습니다:\n{tester_response}\n\n"
+                            f"기존 코드:\n```python\n{code}\n```\n\n"
+                            f"오류를 반드시 수정한 전체 코드를 작성해주세요.\n"
+                            f"특히 지적된 부분을 정확히 고치세요."
                         )
                         fix_msgs = self._build_agent_messages(fix_prompt)
                         fix_response = self.coder.run(fix_msgs, self.output_settings)
-                        self._add_message("model", "Coder", f"(수정) {fix_response}", is_code=True)
+                        self._add_message("model", "Coder", f"(수정 {attempt + 1}) {fix_response}", is_code=True)
                         new_code = TesterAgent.extract_code(fix_response)
                         if new_code:
                             code = new_code
-                            self.pending_exec = code
+                            re_test_msgs = self._build_agent_messages(
+                                f"수정된 코드를 다시 검증해주세요:\n```python\n{code}\n```"
+                            )
+                            re_test_response = self.tester.run(re_test_msgs, self.output_settings)
+                            self._add_message("model", "Tester", re_test_response)
+                            if "[PASS]" in re_test_response:
+                                tester_passed = True
+                                self.pending_exec = code
+                                break
+                            tester_response = re_test_response
                         else:
                             break
+
+                    if not tester_passed:
+                        self._add_message("model", "Tester", "[BLOCKED] Tester 미통과 - 코드 실행을 차단합니다")
+                        self.pending_exec = None
         else:
             self._add_message("model", "Tester", "[FAIL] 코드 블록을 찾을 수 없습니다")
 

@@ -40,17 +40,38 @@ class NUPModelingPreferences(bpy.types.AddonPreferences):
         default="gemini-3-flash-preview",
     )
 
+    unsplash_key: StringProperty(
+        name="Unsplash Access Key",
+        description="Unsplash API Access Key (unsplash.com/developers에서 발급)",
+        subtype="PASSWORD",
+        default="",
+    )
+
     def draw(self, context):
         layout = self.layout
         layout.prop(self, "api_key")
         layout.prop(self, "model_name")
         if not self.api_key:
             layout.label(text="API 키를 입력하세요", icon="ERROR")
+        layout.separator()
+        layout.prop(self, "unsplash_key")
+        if not self.unsplash_key:
+            layout.label(text="Unsplash 키 없이도 로컬 이미지 사용 가능", icon="INFO")
 
 
 # ---------------------------------------------------------------------------
 # Scene Properties (세션 데이터)
 # ---------------------------------------------------------------------------
+class NUPRefImageResult(bpy.types.PropertyGroup):
+    """Unsplash 검색 결과 항목"""
+    image_id: StringProperty(name="ID")
+    url_thumb: StringProperty(name="Thumbnail URL")
+    url_small: StringProperty(name="Small URL")
+    url_regular: StringProperty(name="Regular URL")
+    description: StringProperty(name="Description")
+    author: StringProperty(name="Author")
+
+
 class NUPMessageItem(bpy.types.PropertyGroup):
     role: StringProperty(name="Role")        # architect, coder, tester, reviewer, optimizer, user
     content: StringProperty(name="Content")
@@ -208,6 +229,25 @@ def register_properties():
         default=True,
     )
 
+    # 참고 이미지
+    bpy.types.Scene.nup_ref_image_path = StringProperty(
+        name="참고 이미지",
+        description="참고할 이미지 파일 경로",
+        subtype="FILE_PATH",
+        default="",
+    )
+    bpy.types.Scene.nup_ref_image_desc = StringProperty(
+        name="이미지 설명",
+        description="참고 이미지에 대한 추가 설명 (색감, 형태, 질감 등)",
+        default="",
+    )
+    bpy.types.Scene.nup_ref_search_query = StringProperty(
+        name="검색어",
+        description="Unsplash 이미지 검색어",
+        default="",
+    )
+    bpy.types.Scene.nup_ref_search_results = CollectionProperty(type=NUPRefImageResult)
+
     # 대화 메시지 & 코드 버전
     bpy.types.Scene.nup_messages = CollectionProperty(type=NUPMessageItem)
     bpy.types.Scene.nup_code_versions = CollectionProperty(type=NUPCodeVersion)
@@ -224,6 +264,8 @@ def unregister_properties():
         "nup_vfx_animation",
         "nup_output_purpose", "nup_output_format",
         "nup_output_max_polys", "nup_output_material",
+        "nup_ref_image_path", "nup_ref_image_desc",
+        "nup_ref_search_query", "nup_ref_search_results",
         "nup_messages", "nup_code_versions", "nup_active_code_version",
     ]
     for p in props:
@@ -235,6 +277,7 @@ def unregister_properties():
 # Register / Unregister
 # ---------------------------------------------------------------------------
 classes = [
+    NUPRefImageResult,
     NUPMessageItem,
     NUPCodeVersion,
     NUPModelingPreferences,
