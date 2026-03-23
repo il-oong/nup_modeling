@@ -139,6 +139,43 @@ def register_properties():
         default="GAME_ASSET",
     )
 
+    # VFX 옵션 (개별 체크박스)
+    bpy.types.Scene.nup_vfx_enabled = BoolProperty(
+        name="VFX 사용",
+        description="VFX 이펙트를 모델에 추가합니다",
+        default=False,
+    )
+    bpy.types.Scene.nup_vfx_particle = BoolProperty(
+        name="파티클",
+        description="파티클 시스템 (불, 연기, 불꽃, 비, 눈)",
+        default=False,
+    )
+    bpy.types.Scene.nup_vfx_physics = BoolProperty(
+        name="물리",
+        description="물리 시뮬레이션 (천, 유체, 강체, 연체)",
+        default=False,
+    )
+    bpy.types.Scene.nup_vfx_geonodes = BoolProperty(
+        name="지오메트리 노드",
+        description="Geometry Nodes 절차적 이펙트",
+        default=False,
+    )
+    bpy.types.Scene.nup_vfx_compositing = BoolProperty(
+        name="컴포지팅",
+        description="컴포지팅 노드 (글로우, 블러, 색보정)",
+        default=False,
+    )
+    bpy.types.Scene.nup_vfx_shader = BoolProperty(
+        name="셰이더 이펙트",
+        description="셰이더 노드 기반 이펙트 (홀로그램, 디졸브, 발광)",
+        default=False,
+    )
+    bpy.types.Scene.nup_vfx_animation = BoolProperty(
+        name="이펙트 애니메이션",
+        description="키프레임 애니메이션 (폭발, 등장, 소멸)",
+        default=False,
+    )
+
     # 용도
     bpy.types.Scene.nup_output_purpose = EnumProperty(
         name="용도",
@@ -181,8 +218,12 @@ def unregister_properties():
     props = [
         "nup_prompt", "nup_chat_input", "nup_is_running",
         "nup_current_round", "nup_max_rounds", "nup_max_retries",
-        "nup_output_style", "nup_output_theme", "nup_output_purpose",
-        "nup_output_format", "nup_output_max_polys", "nup_output_material",
+        "nup_output_style", "nup_output_theme",
+        "nup_vfx_enabled", "nup_vfx_particle", "nup_vfx_physics",
+        "nup_vfx_geonodes", "nup_vfx_compositing", "nup_vfx_shader",
+        "nup_vfx_animation",
+        "nup_output_purpose", "nup_output_format",
+        "nup_output_max_polys", "nup_output_material",
         "nup_messages", "nup_code_versions", "nup_active_code_version",
     ]
     for p in props:

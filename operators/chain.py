@@ -13,6 +13,22 @@ def get_chain_runner():
 
 
 def _get_output_settings(scene) -> dict:
+    # VFX 활성화된 항목 수집
+    vfx_list = []
+    if scene.nup_vfx_enabled:
+        if scene.nup_vfx_particle:
+            vfx_list.append("파티클(불/연기/비/눈)")
+        if scene.nup_vfx_physics:
+            vfx_list.append("물리시뮬레이션(천/유체/강체)")
+        if scene.nup_vfx_geonodes:
+            vfx_list.append("지오메트리노드")
+        if scene.nup_vfx_compositing:
+            vfx_list.append("컴포지팅(글로우/블러)")
+        if scene.nup_vfx_shader:
+            vfx_list.append("셰이더이펙트(홀로그램/발광/디졸브)")
+        if scene.nup_vfx_animation:
+            vfx_list.append("이펙트애니메이션(폭발/등장/소멸)")
+
     return {
         "style": scene.nup_output_style,
         "theme": scene.nup_output_theme,
@@ -20,6 +36,7 @@ def _get_output_settings(scene) -> dict:
         "format": scene.nup_output_format,
         "max_polys": scene.nup_output_max_polys,
         "material": scene.nup_output_material,
+        "vfx": vfx_list,
     }
 
 

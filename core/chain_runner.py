@@ -9,6 +9,7 @@ from ..agents import (
     TesterAgent,
     ReviewerAgent,
     OptimizerAgent,
+    VFXAgent,
 )
 
 
@@ -43,6 +44,7 @@ class ChainRunner:
         self.tester = TesterAgent(api_key, model)
         self.reviewer = ReviewerAgent(api_key, model)
         self.optimizer = OptimizerAgent(api_key, model)
+        self.vfx = VFXAgent(api_key, model)
 
     def update_settings(self, api_key: str, model: str, output_settings: dict):
         """API 키, 모델, 아웃풋 설정을 갱신한다."""
@@ -221,6 +223,32 @@ class ChainRunner:
 
             self.messages.append({"role": "user", "text": opt_prompt})
             self.messages.append({"role": "model", "text": "[Optimizer] 최적화 완료"})
+
+        # 6. VFX (활성화된 경우)
+        vfx_list = self.output_settings.get("vfx", [])
+        if code and vfx_list:
+            vfx_prompt = (
+                f"다음 모델링 코드에 VFX 이펙트를 추가해주세요.\n"
+                f"현재 코드:\n```python\n{code}\n```\n\n"
+                f"추가할 VFX: {', '.join(vfx_list)}\n\n"
+                f"기존 코드에 VFX 코드를 통합한 전체 코드를 작성해주세요."
+            )
+            vfx_msgs = self._build_agent_messages(vfx_prompt)
+            vfx_response = self.vfx.run(vfx_msgs, self.output_settings)
+            self._add_message("model", "VFX", vfx_response, is_code=True)
+
+            vfx_code = TesterAgent.extract_code(vfx_response)
+            if vfx_code:
+                safety_err = TesterAgent.check_code_safety(vfx_code)
+                if not safety_err:
+                    code = vfx_code
+                    self.pending_exec = code
+                    self._add_message("model", "VFX", "VFX 코드 적용됨")
+                else:
+                    self._add_message("model", "Tester", f"VFX 코드 안전성 실패 - 이전 버전 유지: {safety_err}")
+
+            self.messages.append({"role": "user", "text": vfx_prompt})
+            self.messages.append({"role": "model", "text": "[VFX] 이펙트 추가 완료"})
 
         return self.get_log_snapshot()
 

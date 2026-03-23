@@ -16,6 +16,8 @@ class AgentBase:
         """아웃풋 설정을 시스템 프롬프트에 주입한다."""
         prompt = self.system_prompt
         if output_settings:
+            vfx = output_settings.get('vfx', [])
+            vfx_text = ", ".join(vfx) if vfx else "없음"
             settings_text = (
                 f"\n\n[아웃풋 목표]\n"
                 f"- 폴리곤: {output_settings.get('style', 'N/A')}\n"
@@ -23,7 +25,8 @@ class AgentBase:
                 f"- 용도: {output_settings.get('purpose', 'N/A')}\n"
                 f"- 최대 폴리곤 수: {output_settings.get('max_polys', 'N/A')}\n"
                 f"- 내보내기 포맷: {output_settings.get('format', 'N/A')}\n"
-                f"- 머티리얼: {'포함' if output_settings.get('material') else '미포함'}"
+                f"- 머티리얼: {'포함' if output_settings.get('material') else '미포함'}\n"
+                f"- VFX: {vfx_text}"
             )
             prompt += settings_text
         return prompt

@@ -4,6 +4,7 @@ from .coder import CoderAgent
 from .tester import TesterAgent
 from .reviewer import ReviewerAgent
 from .optimizer import OptimizerAgent
+from .vfx import VFXAgent
 
 __all__ = [
     "AgentBase",
@@ -12,4 +13,5 @@ __all__ = [
     "TesterAgent",
     "ReviewerAgent",
     "OptimizerAgent",
+    "VFXAgent",
 ]

@@ -41,6 +41,21 @@ class NUP_PT_MainPanel(bpy.types.Panel):
         box.label(text="테마", icon="BRUSH_DATA")
         box.prop(scene, "nup_output_theme", text="")
 
+        # ── VFX ──
+        box = layout.box()
+        row = box.row()
+        row.prop(scene, "nup_vfx_enabled", text="VFX 이펙트", icon="PARTICLES")
+        if scene.nup_vfx_enabled:
+            col = box.column(align=True)
+            col.prop(scene, "nup_vfx_particle", icon="FORCE_WIND")
+            col.prop(scene, "nup_vfx_physics", icon="PHYSICS")
+            col.prop(scene, "nup_vfx_geonodes", icon="GEOMETRY_NODES")
+            col.prop(scene, "nup_vfx_compositing", icon="NODE_COMPOSITING")
+            col.prop(scene, "nup_vfx_shader", icon="SHADING_RENDERED")
+            col.prop(scene, "nup_vfx_animation", icon="RENDER_ANIMATION")
+
+        layout.separator()
+
         # ── 용도 & 포맷 ──
         box = layout.box()
         box.label(text="출력", icon="OUTPUT")
