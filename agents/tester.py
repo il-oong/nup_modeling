@@ -28,16 +28,27 @@ SAFE_BUILTINS = {
     "True": True, "False": False, "None": None,
     "range": range, "len": len, "print": print,
     "list": list, "dict": dict, "tuple": tuple, "set": set,
-    "int": int, "float": float, "str": str, "bool": bool,
+    "frozenset": frozenset, "bytes": bytes, "bytearray": bytearray,
+    "int": int, "float": float, "str": str, "bool": bool, "complex": complex,
     "max": max, "min": min, "abs": abs, "round": round,
     "enumerate": enumerate, "zip": zip, "map": map, "filter": filter,
     "sorted": sorted, "reversed": reversed,
     "isinstance": isinstance, "issubclass": issubclass,
-    "hasattr": hasattr, "sum": sum, "any": any, "all": all,
+    "hasattr": hasattr, "getattr": getattr, "setattr": setattr,
+    "sum": sum, "any": any, "all": all,
+    "type": type, "super": super, "object": object,
+    "iter": iter, "next": next,
+    "repr": repr, "id": id, "hash": hash,
+    "chr": chr, "ord": ord, "hex": hex, "oct": oct,
+    "format": format, "slice": slice,
     "pow": pow, "divmod": divmod,
+    "property": property, "staticmethod": staticmethod, "classmethod": classmethod,
     "ValueError": ValueError, "TypeError": TypeError,
     "RuntimeError": RuntimeError, "KeyError": KeyError,
     "IndexError": IndexError, "AttributeError": AttributeError,
+    "ImportError": ImportError, "NameError": NameError,
+    "StopIteration": StopIteration, "ZeroDivisionError": ZeroDivisionError,
+    "NotImplementedError": NotImplementedError, "OSError": OSError,
     "Exception": Exception,
 }
 
@@ -159,7 +170,7 @@ class TesterAgent(AgentBase):
             safe_globals["math"] = math
             safe_globals["__import__"] = _safe_import
 
-            exec(code, {"__builtins__": safe_globals, "__name__": "__main__"})
+            exec(code, {"__builtins__": safe_globals, "__name__": "__nup_exec__"})
             return {"success": True, "error": None}
         except SyntaxError as e:
             return {"success": False, "error": f"문법 오류 (라인 {e.lineno}): {e.msg}"}
