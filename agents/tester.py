@@ -71,6 +71,7 @@ class TesterAgent(AgentBase):
         "- if __name__ == '__main__': 사용 → exec() 환경에서 NameError 발생. [FAIL] 처리.\n"
         "- bpy.ops.object.select_all(action='SELECT') + delete() → 기존 작업물 삭제 위험. [FAIL] 처리.\n"
         "- bpy.context.collection.objects.new() → AttributeError. bpy.data.objects.new() + link() 사용해야 함. [FAIL] 처리.\n"
+        "- bmesh.ops.create_cone(diameter1=...) → TypeError. radius1/radius2 사용해야 함. [FAIL] 처리.\n"
         "- bpy.ops.node.new_geometry_nodes_modifier() → 컨텍스트 오류. 수동 노드그룹 생성 필요. [FAIL] 처리.\n"
         "- gn_mod.node_group 접근 전 None 체크 없음 → AttributeError 가능. [FAIL] 처리."
     )
