@@ -221,8 +221,12 @@ class ChainRunner:
 
                 rev_code = TesterAgent.extract_code(rev_response)
                 if rev_code:
-                    code = rev_code
-                    self.pending_exec = code
+                    safety_err = TesterAgent.check_code_safety(rev_code)
+                    if not safety_err:
+                        code = rev_code
+                        self.pending_exec = code
+                    else:
+                        self._add_message("model", "Tester", f"리뷰 수정 코드 안전성 실패 - 이전 버전 유지: {safety_err}")
 
         # 5. Optimizer
         if code:
