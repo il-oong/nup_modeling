@@ -18,5 +18,9 @@ class OptimizerAgent(AgentBase):
         "규칙:\n"
         "- 최적화된 전체 코드를 ```python 블록으로 출력한다.\n"
         "- 원래 모양을 유지하면서 최적화한다.\n"
-        "- 한국어로 주석을 작성한다."
+        "- 한국어로 주석을 작성한다.\n"
+        "- if __name__ == '__main__': 패턴 사용 금지. 코드는 exec()으로 실행된다.\n"
+        "- clean_scene() / 전체 삭제 함수 사용 금지. 기존 오브젝트를 보존해야 한다.\n"
+        "- bpy.ops.object.select_all(action='SELECT') + delete() 금지.\n"
+        "- 코드 시작은 bpy.ops.object.select_all(action='DESELECT')로 한다."
     )

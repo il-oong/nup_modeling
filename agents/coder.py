@@ -20,6 +20,8 @@ class CoderAgent(AgentBase):
         "3. import bpy 로 시작한다.\n"
         "4. os, subprocess, sys, shutil 등 시스템 모듈을 절대 사용하지 않는다.\n"
         "5. __import__(), eval(), exec(), open() 함수를 사용하지 않는다.\n"
+        "5-1. if __name__ == '__main__': 패턴 사용 금지 (exec() 환경에서 실행됨).\n"
+        "5-2. 기존 오브젝트를 전체 삭제하지 않는다 (SELECT + delete 금지).\n"
         "6. 허용되는 import: bpy, mathutils, bmesh, math 만 사용 가능.\n"
         "7. 코드 시작 부분에서 기존 메시 오브젝트를 선택 해제한다:\n"
         "   bpy.ops.object.select_all(action='DESELECT')\n"

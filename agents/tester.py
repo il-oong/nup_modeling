@@ -65,7 +65,10 @@ class TesterAgent(AgentBase):
         "- bm.faces.get(), bm.verts.get() → AttributeError 발생. [FAIL] 처리.\n"
         "- ensure_lookup_table() 없이 인덱스 접근 → IndexError 가능. [FAIL] 처리.\n"
         "- bm.to_mesh() 또는 bm.free() 누락 → 메모리 누수. [FAIL] 처리.\n"
-        "- modifier_apply 전 mode_set(mode='OBJECT') 누락 → RuntimeError 가능. [FAIL] 처리."
+        "- modifier_apply 전 mode_set(mode='OBJECT') 누락 → RuntimeError 가능. [FAIL] 처리.\n\n"
+        "반드시 검사해야 할 실행 환경 오류 패턴:\n"
+        "- if __name__ == '__main__': 사용 → exec() 환경에서 NameError 발생. [FAIL] 처리.\n"
+        "- bpy.ops.object.select_all(action='SELECT') + delete() → 기존 작업물 삭제 위험. [FAIL] 처리."
     )
 
     @staticmethod
@@ -151,7 +154,7 @@ class TesterAgent(AgentBase):
             safe_globals["math"] = math
             safe_globals["__import__"] = _safe_import
 
-            exec(code, {"__builtins__": safe_globals})
+            exec(code, {"__builtins__": safe_globals, "__name__": "__main__"})
             return {"success": True, "error": None}
         except SyntaxError as e:
             return {"success": False, "error": f"문법 오류 (라인 {e.lineno}): {e.msg}"}
