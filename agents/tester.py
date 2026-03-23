@@ -1,5 +1,6 @@
 """Tester 에이전트 - 코드 검증 및 실제 실행"""
 
+import ast
 import re
 import traceback
 
@@ -7,7 +8,29 @@ from .base import AgentBase
 
 
 # exec() 실행 시 차단할 모듈
-BLOCKED_MODULES = {"os", "subprocess", "sys", "shutil", "pathlib", "socket", "http", "ftplib"}
+BLOCKED_MODULES = frozenset({
+    "os", "subprocess", "sys", "shutil", "pathlib",
+    "socket", "http", "ftplib", "smtplib", "ctypes",
+    "multiprocessing", "signal",
+})
+
+# exec()에서 허용할 안전한 builtins만
+SAFE_BUILTINS = {
+    "True": True, "False": False, "None": None,
+    "range": range, "len": len, "print": print,
+    "list": list, "dict": dict, "tuple": tuple, "set": set,
+    "int": int, "float": float, "str": str, "bool": bool,
+    "max": max, "min": min, "abs": abs, "round": round,
+    "enumerate": enumerate, "zip": zip, "map": map, "filter": filter,
+    "sorted": sorted, "reversed": reversed,
+    "isinstance": isinstance, "issubclass": issubclass,
+    "hasattr": hasattr, "sum": sum, "any": any, "all": all,
+    "pow": pow, "divmod": divmod,
+    "ValueError": ValueError, "TypeError": TypeError,
+    "RuntimeError": RuntimeError, "KeyError": KeyError,
+    "IndexError": IndexError, "AttributeError": AttributeError,
+    "Exception": Exception,
+}
 
 
 class TesterAgent(AgentBase):
@@ -39,36 +62,75 @@ class TesterAgent(AgentBase):
         return None
 
     @staticmethod
-    def check_blocked_imports(code: str) -> str | None:
-        """위험한 모듈 import를 검사한다."""
-        for line in code.splitlines():
-            stripped = line.strip()
-            if stripped.startswith("import ") or stripped.startswith("from "):
-                for module in BLOCKED_MODULES:
-                    if module in stripped:
-                        return f"차단된 모듈 사용: {module} (라인: {stripped})"
+    def check_code_safety(code: str) -> str | None:
+        """AST 기반으로 위험한 코드를 검사한다."""
+        try:
+            tree = ast.parse(code)
+        except SyntaxError as e:
+            return f"문법 오류 (라인 {e.lineno}): {e.msg}"
+
+        for node in ast.walk(tree):
+            # import 검사
+            if isinstance(node, ast.Import):
+                for alias in node.names:
+                    mod = alias.name.split(".")[0]
+                    if mod in BLOCKED_MODULES:
+                        return f"차단된 모듈: {mod} (라인 {node.lineno})"
+
+            elif isinstance(node, ast.ImportFrom):
+                if node.module:
+                    mod = node.module.split(".")[0]
+                    if mod in BLOCKED_MODULES:
+                        return f"차단된 모듈: {mod} (라인 {node.lineno})"
+
+            # __import__() 호출 차단
+            elif isinstance(node, ast.Call):
+                func = node.func
+                if isinstance(func, ast.Name) and func.id in ("__import__", "eval", "exec", "compile", "open"):
+                    return f"차단된 함수: {func.id}() (라인 {node.lineno})"
+                if isinstance(func, ast.Attribute) and func.attr in ("__import__", "system", "popen"):
+                    return f"차단된 함수: {func.attr}() (라인 {node.lineno})"
+
         return None
 
     @staticmethod
     def execute_code(code: str) -> dict:
-        """Blender 내에서 코드를 실행하고 결과를 반환한다.
+        """Blender 메인 스레드에서 코드를 실행하고 결과를 반환한다.
+
+        주의: 이 함수는 반드시 메인 스레드에서 호출해야 한다.
 
         Returns:
             {"success": bool, "error": str | None}
         """
-        # 위험한 import 검사
-        blocked = TesterAgent.check_blocked_imports(code)
-        if blocked:
-            return {"success": False, "error": blocked}
+        # AST 기반 안전성 검사
+        safety_error = TesterAgent.check_code_safety(code)
+        if safety_error:
+            return {"success": False, "error": safety_error}
 
         try:
             import bpy
+            import mathutils
+            import bmesh
+
             # 실행 전 undo 포인트 생성
             bpy.ops.ed.undo_push(message="NUP Modeling: Before Test")
-            exec(code, {"__builtins__": __builtins__, "bpy": __import__("bpy")})
+
+            # 안전한 globals로 실행
+            safe_globals = dict(SAFE_BUILTINS)
+            safe_globals["bpy"] = bpy
+            safe_globals["mathutils"] = mathutils
+            safe_globals["bmesh"] = bmesh
+            safe_globals["math"] = __import__("math")
+
+            exec(code, {"__builtins__": safe_globals})
             return {"success": True, "error": None}
         except SyntaxError as e:
             return {"success": False, "error": f"문법 오류 (라인 {e.lineno}): {e.msg}"}
         except Exception as e:
             tb = traceback.format_exc()
-            return {"success": False, "error": f"{type(e).__name__}: {e}\n{tb}"}
+            # 민감 정보 필터링
+            filtered_tb = "\n".join(
+                line for line in tb.splitlines()
+                if "api_key" not in line.lower()
+            )
+            return {"success": False, "error": f"{type(e).__name__}: {e}\n{filtered_tb}"}

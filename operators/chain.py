@@ -5,6 +5,7 @@ import bpy
 
 # 체인 러너 인스턴스를 모듈 레벨에서 관리
 _chain_runner = None
+_lock = threading.Lock()
 
 
 def get_chain_runner():
@@ -39,6 +40,35 @@ def _get_model() -> str:
     return prefs.model_name if prefs and prefs.model_name else "gemini-3-flash-preview"
 
 
+def _sync_log_to_scene(scene, log):
+    """체인 러너의 로그를 scene 메시지에 동기화한다."""
+    current_count = len(scene.nup_messages)
+    for i in range(current_count, len(log)):
+        msg = log[i]
+        item = scene.nup_messages.add()
+        item.role = msg["agent"]
+        item.content = msg["content"]
+        item.is_code = msg.get("is_code", False)
+
+
+def _sync_code_versions(scene, runner):
+    """코드 버전을 scene에 동기화한다."""
+    if runner and runner.code_versions:
+        scene.nup_code_versions.clear()
+        for i, code in enumerate(runner.code_versions):
+            cv = scene.nup_code_versions.add()
+            cv.version = i + 1
+            cv.code = code
+            cv.status = "success"
+        scene.nup_active_code_version = len(runner.code_versions)
+
+
+def _redraw_all(context):
+    """모든 영역을 다시 그린다."""
+    for area in context.screen.areas:
+        area.tag_redraw()
+
+
 class NUP_OT_RunChain(bpy.types.Operator):
     bl_idname = "nup.run_chain"
     bl_label = "체인 실행"
@@ -46,7 +76,7 @@ class NUP_OT_RunChain(bpy.types.Operator):
 
     _timer = None
     _thread = None
-    _result = None
+    _api_done = False
     _running = False
 
     def execute(self, context):
@@ -74,71 +104,79 @@ class NUP_OT_RunChain(bpy.types.Operator):
         scene.nup_is_running = True
         scene.nup_current_round += 1
 
-        # 백그라운드 스레드에서 체인 실행 (UI 멈춤 방지)
+        # 백그라운드 스레드에서 API 호출만 수행
+        NUP_OT_RunChain._api_done = False
         NUP_OT_RunChain._running = True
-        NUP_OT_RunChain._result = None
         NUP_OT_RunChain._thread = threading.Thread(
-            target=self._run_in_thread,
+            target=self._run_api_thread,
             args=(prompt, scene.nup_max_retries),
+            daemon=True,
         )
         NUP_OT_RunChain._thread.start()
 
-        # 타이머로 완료 체크
-        NUP_OT_RunChain._timer = context.window_manager.event_timer_add(0.5, window=context.window)
+        # 0.3초마다 로그 업데이트 체크 (실시간 스트리밍 효과)
+        NUP_OT_RunChain._timer = context.window_manager.event_timer_add(0.3, window=context.window)
         context.window_manager.modal_handler_add(self)
         return {"RUNNING_MODAL"}
 
-    def _run_in_thread(self, prompt, max_retries):
+    def _run_api_thread(self, prompt, max_retries):
         global _chain_runner
         try:
-            result = _chain_runner.run_chain(prompt, max_retries)
-            NUP_OT_RunChain._result = result
+            _chain_runner.run_chain_api_only(prompt, max_retries)
         except Exception as e:
-            NUP_OT_RunChain._result = [{"agent": "System", "role": "model", "content": f"오류: {e}", "is_code": False}]
-        NUP_OT_RunChain._running = False
+            _chain_runner._add_message("model", "System", f"오류: {e}")
+        NUP_OT_RunChain._api_done = True
 
     def modal(self, context, event):
-        if event.type == "TIMER":
-            if not NUP_OT_RunChain._running:
-                # 완료
-                context.window_manager.event_timer_remove(NUP_OT_RunChain._timer)
-                NUP_OT_RunChain._timer = None
+        if event.type != "TIMER":
+            return {"PASS_THROUGH"}
 
-                scene = context.scene
-                scene.nup_is_running = False
+        scene = context.scene
+        global _chain_runner
 
-                # 결과를 scene 메시지에 추가
-                if NUP_OT_RunChain._result:
-                    for msg in NUP_OT_RunChain._result:
-                        item = scene.nup_messages.add()
-                        item.role = msg["agent"]
-                        item.content = msg["content"]
-                        item.is_code = msg.get("is_code", False)
+        if not NUP_OT_RunChain._running:
+            self._cleanup(context)
+            scene.nup_is_running = False
+            return {"FINISHED"}
 
-                # 코드 버전 업데이트
-                global _chain_runner
-                if _chain_runner and _chain_runner.code_versions:
-                    scene.nup_code_versions.clear()
-                    for i, code in enumerate(_chain_runner.code_versions):
-                        cv = scene.nup_code_versions.add()
-                        cv.version = i + 1
-                        cv.code = code
-                        cv.status = "success"
-                    scene.nup_active_code_version = len(_chain_runner.code_versions)
+        # 실시간 로그 동기화 (스트리밍 효과)
+        if _chain_runner:
+            _sync_log_to_scene(scene, _chain_runner.log)
+            _redraw_all(context)
 
-                # UI 갱신
-                for area in context.screen.areas:
-                    area.tag_redraw()
+        # API 호출 완료 → 메인 스레드에서 코드 실행
+        if NUP_OT_RunChain._api_done:
+            NUP_OT_RunChain._api_done = False
 
-                self.report({"INFO"}, "체인 실행 완료")
-                return {"FINISHED"}
+            if _chain_runner and _chain_runner.pending_exec:
+                # 메인 스레드에서 exec() 실행
+                result = _chain_runner.execute_pending()
+                _sync_log_to_scene(scene, _chain_runner.log)
+                _sync_code_versions(scene, _chain_runner)
+
+                if not result["success"]:
+                    self.report({"WARNING"}, f"코드 실행 실패: {result['error'][:100]}")
+                else:
+                    self.report({"INFO"}, "체인 완료 - 코드 실행 성공")
+            else:
+                _sync_log_to_scene(scene, _chain_runner.log if _chain_runner else [])
+                self.report({"WARNING"}, "체인 완료 - 실행할 코드 없음")
+
+            _redraw_all(context)
+            NUP_OT_RunChain._running = False
+            self._cleanup(context)
+            scene.nup_is_running = False
+            return {"FINISHED"}
 
         return {"PASS_THROUGH"}
 
-    def cancel(self, context):
+    def _cleanup(self, context):
         if NUP_OT_RunChain._timer:
             context.window_manager.event_timer_remove(NUP_OT_RunChain._timer)
             NUP_OT_RunChain._timer = None
+
+    def cancel(self, context):
+        self._cleanup(context)
 
 
 class NUP_OT_StopChain(bpy.types.Operator):
@@ -148,6 +186,7 @@ class NUP_OT_StopChain(bpy.types.Operator):
 
     def execute(self, context):
         NUP_OT_RunChain._running = False
+        NUP_OT_RunChain._api_done = False
         context.scene.nup_is_running = False
         self.report({"INFO"}, "체인 중단됨")
         return {"FINISHED"}
