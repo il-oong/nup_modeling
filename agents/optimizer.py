@@ -26,5 +26,8 @@ class OptimizerAgent(AgentBase):
         "- 오브젝트 생성: bpy.data.objects.new() + bpy.context.collection.objects.link() 사용.\n"
         "- bpy.context.collection.objects.new() 사용 금지 (AttributeError 발생).\n"
         "- face.vert_coords_get() 사용 금지. [v.co for v in face.verts] 사용.\n"
-        "- bmesh.ops.create_cone(): diameter1/diameter2 금지. radius1/radius2 사용."
+        "- bmesh.ops.create_cone(): diameter1/diameter2 금지. radius1/radius2 사용.\n"
+        "- Principled BSDF 입력 직접 인덱싱 금지. in 또는 .get()으로 확인 후 접근:\n"
+        "  3.x: Subsurface / Specular / Clearcoat\n"
+        "  4.x: Subsurface Weight / Specular IOR Level / Coat Weight"
     )

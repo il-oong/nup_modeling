@@ -84,7 +84,9 @@ class TesterAgent(AgentBase):
         "- bpy.context.collection.objects.new() → AttributeError. bpy.data.objects.new() + link() 사용해야 함. [FAIL] 처리.\n"
         "- bmesh.ops.create_cone(diameter1=...) → TypeError. radius1/radius2 사용해야 함. [FAIL] 처리.\n"
         "- bpy.ops.node.new_geometry_nodes_modifier() → 컨텍스트 오류. 수동 노드그룹 생성 필요. [FAIL] 처리.\n"
-        "- gn_mod.node_group 접근 전 None 체크 없음 → AttributeError 가능. [FAIL] 처리."
+        "- gn_mod.node_group 접근 전 None 체크 없음 → AttributeError 가능. [FAIL] 처리.\n"
+        "- Principled BSDF 입력에 직접 인덱싱 (bsdf.inputs['Specular IOR Level'] 등) → KeyError. [FAIL] 처리.\n"
+        "  반드시 in 또는 .get()으로 존재 확인 후 접근해야 함."
     )
 
     @staticmethod
