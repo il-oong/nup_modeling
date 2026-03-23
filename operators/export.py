@@ -11,6 +11,10 @@ class NUP_OT_ExportModel(bpy.types.Operator):
     bl_description = "모델을 지정된 포맷으로 내보냅니다"
 
     filepath: bpy.props.StringProperty(subtype="FILE_PATH")
+    filter_glob: bpy.props.StringProperty(
+        default="*.fbx;*.obj;*.stl;*.glb;*.blend;*.mp4",
+        options={"HIDDEN"},
+    )
 
     def execute(self, context):
         scene = context.scene
@@ -22,21 +26,28 @@ class NUP_OT_ExportModel(bpy.types.Operator):
 
         filepath = self.filepath
         if not filepath:
-            filepath = f"//nup_model"
+            filepath = "//nup_model"
 
         try:
             if fmt == "FBX":
                 bpy.ops.export_scene.fbx(filepath=filepath + ".fbx", use_selection=True)
             elif fmt == "OBJ":
-                bpy.ops.wm.obj_export(filepath=filepath + ".obj", export_selected_objects=True)
+                # Blender 3.6+ 새 API, fallback 포함
+                try:
+                    bpy.ops.wm.obj_export(filepath=filepath + ".obj", export_selected_objects=True)
+                except AttributeError:
+                    bpy.ops.export_scene.obj(filepath=filepath + ".obj", use_selection=True)
             elif fmt == "STL":
                 bpy.ops.export_mesh.stl(filepath=filepath + ".stl", use_selection=True)
             elif fmt == "GLTF":
-                bpy.ops.export_scene.gltf(filepath=filepath + ".glb", use_selection=True)
+                # glTF 파라미터명 호환
+                try:
+                    bpy.ops.export_scene.gltf(filepath=filepath + ".glb", use_selection=True)
+                except TypeError:
+                    bpy.ops.export_scene.gltf(filepath=filepath + ".glb", export_selected=True)
             elif fmt == "BLEND":
                 bpy.ops.wm.save_as_mainfile(filepath=filepath + ".blend")
             elif fmt == "MP4":
-                # 영상 렌더링
                 scene.render.filepath = filepath
                 scene.render.image_settings.file_format = "FFMPEG"
                 scene.render.ffmpeg.format = "MPEG4"

@@ -25,6 +25,10 @@ def call_gemini(api_key: str, system_prompt: str, messages: list[dict], model: s
     Returns:
         응답 텍스트
     """
+    # API 키 검증
+    if not api_key:
+        return "[오류] API 키가 설정되지 않았습니다"
+
     # 모델명 검증
     if not _MODEL_PATTERN.match(model):
         return f"[오류] 잘못된 모델명: {model}"

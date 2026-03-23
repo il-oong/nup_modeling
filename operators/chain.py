@@ -5,7 +5,6 @@ import bpy
 
 # 체인 러너 인스턴스를 모듈 레벨에서 관리
 _chain_runner = None
-_lock = threading.Lock()
 
 
 def get_chain_runner():
@@ -40,11 +39,14 @@ def _get_model() -> str:
     return prefs.model_name if prefs and prefs.model_name else "gemini-3-flash-preview"
 
 
-def _sync_log_to_scene(scene, log):
-    """체인 러너의 로그를 scene 메시지에 동기화한다."""
+def _sync_log_to_scene(scene, runner):
+    """체인 러너의 로그를 scene 메시지에 동기화한다 (스레드 안전)."""
+    if not runner:
+        return
+    log_snapshot = runner.get_log_snapshot()
     current_count = len(scene.nup_messages)
-    for i in range(current_count, len(log)):
-        msg = log[i]
+    for i in range(current_count, len(log_snapshot)):
+        msg = log_snapshot[i]
         item = scene.nup_messages.add()
         item.role = msg["agent"]
         item.content = msg["content"]
@@ -89,22 +91,24 @@ class NUP_OT_RunChain(bpy.types.Operator):
 
         api_key = _get_api_key()
         if not api_key:
-            self.report({"WARNING"}, "설정에서 API 키를 입력하세요 (Edit > Preferences > Add-ons > NUP Modeling)")
+            self.report({"WARNING"}, "Edit > Preferences > Add-ons > NUP Modeling에서 API 키를 입력하세요")
             return {"CANCELLED"}
 
         global _chain_runner
         from ..core.chain_runner import ChainRunner
 
         model = _get_model()
+        output_settings = _get_output_settings(scene)
+
+        # API 키/모델 변경 시에도 갱신
         if _chain_runner is None:
-            _chain_runner = ChainRunner(api_key, _get_output_settings(scene), model)
+            _chain_runner = ChainRunner(api_key, output_settings, model)
         else:
-            _chain_runner.output_settings = _get_output_settings(scene)
+            _chain_runner.update_settings(api_key, model, output_settings)
 
         scene.nup_is_running = True
         scene.nup_current_round += 1
 
-        # 백그라운드 스레드에서 API 호출만 수행
         NUP_OT_RunChain._api_done = False
         NUP_OT_RunChain._running = True
         NUP_OT_RunChain._thread = threading.Thread(
@@ -114,7 +118,6 @@ class NUP_OT_RunChain(bpy.types.Operator):
         )
         NUP_OT_RunChain._thread.start()
 
-        # 0.3초마다 로그 업데이트 체크 (실시간 스트리밍 효과)
         NUP_OT_RunChain._timer = context.window_manager.event_timer_add(0.3, window=context.window)
         context.window_manager.modal_handler_add(self)
         return {"RUNNING_MODAL"}
@@ -139,27 +142,25 @@ class NUP_OT_RunChain(bpy.types.Operator):
             scene.nup_is_running = False
             return {"FINISHED"}
 
-        # 실시간 로그 동기화 (스트리밍 효과)
-        if _chain_runner:
-            _sync_log_to_scene(scene, _chain_runner.log)
-            _redraw_all(context)
+        # 실시간 로그 동기화
+        _sync_log_to_scene(scene, _chain_runner)
+        _redraw_all(context)
 
-        # API 호출 완료 → 메인 스레드에서 코드 실행
+        # API 완료 → 메인 스레드에서 코드 실행
         if NUP_OT_RunChain._api_done:
             NUP_OT_RunChain._api_done = False
 
             if _chain_runner and _chain_runner.pending_exec:
-                # 메인 스레드에서 exec() 실행
                 result = _chain_runner.execute_pending()
-                _sync_log_to_scene(scene, _chain_runner.log)
+                _sync_log_to_scene(scene, _chain_runner)
                 _sync_code_versions(scene, _chain_runner)
 
-                if not result["success"]:
-                    self.report({"WARNING"}, f"코드 실행 실패: {result['error'][:100]}")
-                else:
+                if result["success"]:
                     self.report({"INFO"}, "체인 완료 - 코드 실행 성공")
+                else:
+                    self.report({"WARNING"}, f"코드 실행 실패: {result['error'][:100]}")
             else:
-                _sync_log_to_scene(scene, _chain_runner.log if _chain_runner else [])
+                _sync_log_to_scene(scene, _chain_runner)
                 self.report({"WARNING"}, "체인 완료 - 실행할 코드 없음")
 
             _redraw_all(context)

@@ -15,6 +15,7 @@ class NUP_OT_SendChat(bpy.types.Operator):
     _thread = None
     _api_done = False
     _running = False
+    _runner_ref = None  # 스레드에 직접 전달
 
     def execute(self, context):
         scene = context.scene
@@ -37,12 +38,12 @@ class NUP_OT_SendChat(bpy.types.Operator):
 
         scene.nup_is_running = True
 
-        # 백그라운드에서 API 호출
+        NUP_OT_SendChat._runner_ref = runner
         NUP_OT_SendChat._api_done = False
         NUP_OT_SendChat._running = True
         NUP_OT_SendChat._thread = threading.Thread(
             target=self._run_api_thread,
-            args=(chat_input, scene.nup_max_retries),
+            args=(runner, chat_input, scene.nup_max_retries),
             daemon=True,
         )
         NUP_OT_SendChat._thread.start()
@@ -53,8 +54,8 @@ class NUP_OT_SendChat(bpy.types.Operator):
         scene.nup_chat_input = ""
         return {"RUNNING_MODAL"}
 
-    def _run_api_thread(self, feedback, max_retries):
-        runner = get_chain_runner()
+    @staticmethod
+    def _run_api_thread(runner, feedback, max_retries):
         try:
             runner.run_chat_api_only(feedback, max_retries)
         except Exception as e:
@@ -66,7 +67,7 @@ class NUP_OT_SendChat(bpy.types.Operator):
             return {"PASS_THROUGH"}
 
         scene = context.scene
-        runner = get_chain_runner()
+        runner = NUP_OT_SendChat._runner_ref
 
         if not NUP_OT_SendChat._running:
             self._cleanup(context)
@@ -74,9 +75,8 @@ class NUP_OT_SendChat(bpy.types.Operator):
             return {"FINISHED"}
 
         # 실시간 로그 동기화
-        if runner:
-            _sync_log_to_scene(scene, runner.log)
-            _redraw_all(context)
+        _sync_log_to_scene(scene, runner)
+        _redraw_all(context)
 
         # API 완료 → 메인 스레드에서 exec
         if NUP_OT_SendChat._api_done:
@@ -84,7 +84,7 @@ class NUP_OT_SendChat(bpy.types.Operator):
 
             if runner and runner.pending_exec:
                 result = runner.execute_pending()
-                _sync_log_to_scene(scene, runner.log)
+                _sync_log_to_scene(scene, runner)
                 _sync_code_versions(scene, runner)
 
                 if result["success"]:
@@ -93,11 +93,12 @@ class NUP_OT_SendChat(bpy.types.Operator):
                     self.report({"WARNING"}, f"실행 실패: {result['error'][:100]}")
             else:
                 if runner:
-                    _sync_log_to_scene(scene, runner.log)
+                    _sync_log_to_scene(scene, runner)
                 self.report({"WARNING"}, "실행할 코드 없음")
 
             _redraw_all(context)
             NUP_OT_SendChat._running = False
+            NUP_OT_SendChat._runner_ref = None
             self._cleanup(context)
             scene.nup_is_running = False
             return {"FINISHED"}

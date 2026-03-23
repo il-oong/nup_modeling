@@ -1,6 +1,7 @@
 """Tester 에이전트 - 코드 검증 및 실제 실행"""
 
 import ast
+import math
 import re
 import traceback
 
@@ -112,15 +113,18 @@ class TesterAgent(AgentBase):
             import mathutils
             import bmesh
 
-            # 실행 전 undo 포인트 생성
-            bpy.ops.ed.undo_push(message="NUP Modeling: Before Test")
+            # 실행 전 undo 포인트 생성 (실패해도 코드 실행은 계속)
+            try:
+                bpy.ops.ed.undo_push(message="NUP Modeling: Before Test")
+            except RuntimeError:
+                pass  # context가 맞지 않는 경우 무시
 
             # 안전한 globals로 실행
             safe_globals = dict(SAFE_BUILTINS)
             safe_globals["bpy"] = bpy
             safe_globals["mathutils"] = mathutils
             safe_globals["bmesh"] = bmesh
-            safe_globals["math"] = __import__("math")
+            safe_globals["math"] = math
 
             exec(code, {"__builtins__": safe_globals})
             return {"success": True, "error": None}
