@@ -40,6 +40,8 @@ class CoderAgent(AgentBase):
         "  v = bm.verts.new(pos)\n"
         "  all_verts.append(v)\n"
         "- bm.faces.get() 사용 금지! BMesh에는 .get() 메서드가 없음.\n"
+        "- face.vert_coords_get() 사용 금지! BMFace에 없는 메서드.\n"
+        "  면의 정점 좌표: [v.co for v in face.verts] 사용.\n"
         "- 인덱스 접근 시 반드시 bm.faces.ensure_lookup_table() 후 bm.faces[i] 사용.\n"
         "- bm.faces.new()의 반환값을 변수에 저장하여 사용:\n"
         "  face = bm.faces.new(verts)\n"

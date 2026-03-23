@@ -63,6 +63,7 @@ class TesterAgent(AgentBase):
         "- bm.verts[:], bm.faces[:], bm.edges[:] 슬라이싱 → TypeError 발생. [FAIL] 처리.\n"
         "- bm.verts[a:b], bm.faces[a:b] 범위 슬라이싱 → TypeError 발생. [FAIL] 처리.\n"
         "- bm.faces.get(), bm.verts.get() → AttributeError 발생. [FAIL] 처리.\n"
+        "- face.vert_coords_get() → AttributeError. [v.co for v in face.verts] 사용해야 함. [FAIL] 처리.\n"
         "- ensure_lookup_table() 없이 인덱스 접근 → IndexError 가능. [FAIL] 처리.\n"
         "- bm.to_mesh() 또는 bm.free() 누락 → 메모리 누수. [FAIL] 처리.\n"
         "- modifier_apply 전 mode_set(mode='OBJECT') 누락 → RuntimeError 가능. [FAIL] 처리.\n\n"

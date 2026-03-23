@@ -24,5 +24,6 @@ class OptimizerAgent(AgentBase):
         "- bpy.ops.object.select_all(action='SELECT') + delete() 금지.\n"
         "- 코드 시작은 bpy.ops.object.select_all(action='DESELECT')로 한다.\n"
         "- 오브젝트 생성: bpy.data.objects.new() + bpy.context.collection.objects.link() 사용.\n"
-        "- bpy.context.collection.objects.new() 사용 금지 (AttributeError 발생)."
+        "- bpy.context.collection.objects.new() 사용 금지 (AttributeError 발생).\n"
+        "- face.vert_coords_get() 사용 금지. [v.co for v in face.verts] 사용."
     )
