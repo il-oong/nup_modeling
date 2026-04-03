@@ -1,41 +1,32 @@
-"""메인 N-Panel UI"""
+"""메인 N-Panel UI - 로우폴리 전용"""
 
 import bpy
 
-# 스타일별 폴리곤 범위 참고 텍스트
-POLY_RANGE = {
-    "LOWPOLY": "권장: 100 ~ 5,000",
-    "HIGHPOLY": "권장: 10,000 ~ 500,000",
-}
-
 # 에이전트별 평균 소요 시간 (초)
 _AGENT_TIME = {
-    "architect": 15,
-    "coder": 20,
-    "tester": 15,
-    "reviewer": 15,
-    "optimizer": 20,
-    "vfx": 25,
-    "retry": 30,    # 재시도 1회당
-    "exec": 5,      # 코드 실행
+    "prompter": 8,
+    "architect": 12,
+    "coder": 18,
+    "tester": 12,
+    "reviewer": 12,
+    "optimizer": 15,
+    "vfx": 20,
+    "retry": 25,
+    "exec": 5,
 }
 
 
 def _estimate_time(scene):
     """설정 기반 예상 제작 시간을 문자열로 반환한다."""
-    # 기본 체인: Architect → Coder → Tester → Reviewer → Optimizer → exec
     base = (
-        _AGENT_TIME["architect"]
+        _AGENT_TIME["prompter"]
+        + _AGENT_TIME["architect"]
         + _AGENT_TIME["coder"]
         + _AGENT_TIME["tester"]
         + _AGENT_TIME["reviewer"]
         + _AGENT_TIME["optimizer"]
         + _AGENT_TIME["exec"]
     )
-
-    # 하이폴리는 코드가 길어서 더 걸림
-    if scene.nup_output_style == "HIGHPOLY":
-        base = int(base * 1.5)
 
     # VFX 활성화 시 추가
     vfx_count = 0
@@ -45,13 +36,11 @@ def _estimate_time(scene):
             if getattr(scene, attr, False):
                 vfx_count += 1
         if vfx_count > 0:
-            base += _AGENT_TIME["vfx"] + _AGENT_TIME["tester"]  # VFX + 검증
+            base += _AGENT_TIME["vfx"] + _AGENT_TIME["tester"]
 
-    # 재시도 횟수 (최악의 경우)
     retries = scene.nup_max_retries
     retry_time = _AGENT_TIME["retry"] * retries
 
-    # 참고 이미지 있으면 약간 더 (멀티모달)
     if getattr(scene, "nup_ref_image_path", ""):
         base += 10
 
@@ -69,7 +58,7 @@ def _estimate_time(scene):
 
 
 class NUP_PT_MainPanel(bpy.types.Panel):
-    bl_label = "NUP Modeling"
+    bl_label = "NUP Modeling (로우폴리)"
     bl_idname = "NUP_PT_MainPanel"
     bl_space_type = "VIEW_3D"
     bl_region_type = "UI"
@@ -79,24 +68,18 @@ class NUP_PT_MainPanel(bpy.types.Panel):
         layout = self.layout
         scene = context.scene
 
-        # ── 스타일 설정 ──
+        # ── 로우폴리 설정 ──
         box = layout.box()
-        box.label(text="스타일", icon="SHADING_SOLID")
+        box.label(text="로우폴리 설정", icon="MESH_ICOSPHERE")
 
-        # 폴리곤 밀도 (로우폴리/하이폴리)
-        row = box.row(align=True)
-        row.prop(scene, "nup_output_style", expand=True)
-
-        # 폴리곤 수 (스타일에 따라 범위 표시)
+        # 폴리곤 수 슬라이더
         col = box.column(align=True)
-        col.prop(scene, "nup_output_max_polys")
-        poly_hint = POLY_RANGE.get(scene.nup_output_style, "")
-        if poly_hint:
-            col.label(text=poly_hint, icon="INFO")
+        col.prop(scene, "nup_output_max_polys", slider=True)
+        col.label(text="범위: 50 ~ 5,000", icon="INFO")
 
         box.separator()
 
-        # 테마 (카툰/실사/게임에셋 등)
+        # 테마
         box.label(text="테마", icon="BRUSH_DATA")
         box.prop(scene, "nup_output_theme", text="")
 
@@ -139,21 +122,17 @@ class NUP_PT_MainPanel(bpy.types.Panel):
         box = layout.box()
         box.label(text="참고 이미지", icon="IMAGE_DATA")
 
-        # 로컬 파일 선택
         box.prop(scene, "nup_ref_image_path", text="파일")
 
-        # Unsplash 검색
         row = box.row(align=True)
         row.prop(scene, "nup_ref_search_query", text="")
         row.operator("nup.search_ref_image", text="", icon="VIEWZOOM")
 
-        # 선택된 이미지 표시
         if scene.nup_ref_image_path:
             row = box.row(align=True)
             row.label(text=scene.nup_ref_image_path.split("\\")[-1].split("/")[-1], icon="CHECKMARK")
             row.operator("nup.clear_ref_image", text="", icon="X")
 
-        # 검색 결과를 패널에 직접 표시
         results = scene.nup_ref_search_results
         if results:
             box.separator()
@@ -163,7 +142,6 @@ class NUP_PT_MainPanel(bpy.types.Panel):
                 item_box = grid.box()
                 col = item_box.column(align=True)
 
-                # 썸네일 표시
                 thumb_name = f"nup_thumb_{item.image_id}"
                 thumb_img = bpy.data.images.get(thumb_name)
                 icon_id = 0
@@ -185,7 +163,6 @@ class NUP_PT_MainPanel(bpy.types.Panel):
                 op = col.operator("nup.select_ref_image", text="선택", icon="CHECKMARK")
                 op.index = i
 
-        # 이미지 설명 (아이디어 입력)
         box.prop(scene, "nup_ref_image_desc", text="설명")
 
         layout.separator()

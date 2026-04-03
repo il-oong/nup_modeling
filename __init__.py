@@ -123,31 +123,13 @@ def register_properties():
         max=5,
     )
 
-    # 아웃풋 설정 - 스타일 (로우폴리/하이폴리)
-    def _on_style_update(self, context):
-        """스타일 변경 시 폴리곤 기본값 자동 변경"""
-        scene = context.scene
-        if scene.nup_output_style == "LOWPOLY":
-            scene.nup_output_max_polys = 1000
-        elif scene.nup_output_style == "HIGHPOLY":
-            scene.nup_output_max_polys = 100000
-
-    bpy.types.Scene.nup_output_style = EnumProperty(
-        name="폴리곤",
-        description="폴리곤 밀도",
-        items=[
-            ("LOWPOLY", "로우폴리", "Low polygon (100~5,000)"),
-            ("HIGHPOLY", "하이폴리", "High polygon (10,000~500,000)"),
-        ],
-        default="LOWPOLY",
-        update=_on_style_update,
-    )
+    # 아웃풋 설정 - 로우폴리 전용
     bpy.types.Scene.nup_output_max_polys = IntProperty(
-        name="Max Polygons",
-        description="최대 폴리곤 수",
+        name="최대 폴리곤",
+        description="최대 폴리곤 수 (로우폴리)",
         default=1000,
-        min=100,
-        max=500000,
+        min=50,
+        max=5000,
     )
 
     # 테마 (시각적 스타일)
@@ -263,7 +245,7 @@ def unregister_properties():
     props = [
         "nup_prompt", "nup_chat_input", "nup_is_running",
         "nup_current_round", "nup_max_rounds", "nup_max_retries",
-        "nup_output_style", "nup_output_theme",
+        "nup_output_theme",
         "nup_vfx_enabled", "nup_vfx_particle", "nup_vfx_physics",
         "nup_vfx_geonodes", "nup_vfx_compositing", "nup_vfx_shader",
         "nup_vfx_animation",

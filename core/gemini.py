@@ -87,7 +87,7 @@ def call_gemini(api_key: str, system_prompt: str, messages: list[dict],
         "contents": contents,
         "generationConfig": {
             "temperature": 0.7,
-            "maxOutputTokens": 8192,
+            "maxOutputTokens": 4096,
         },
     }
 

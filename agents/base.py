@@ -3,6 +3,56 @@
 from ..core.gemini import call_gemini
 
 
+# 폴리곤 수에 따른 디테일 레벨 매핑
+def _poly_detail_guide(max_polys: int) -> str:
+    """폴리곤 수에 따라 구체적인 메쉬 세그먼트/디테일 가이드를 반환한다."""
+    if max_polys <= 200:
+        return (
+            "\n\n[폴리곤 디테일 가이드 - 극저폴리 (~200)]\n"
+            "- 원형 단면: 4~6각형 (segments=4~6)\n"
+            "- 구체: segments=4, rings=3 수준\n"
+            "- 파트별 최소 면만 사용. 박스 형태 위주.\n"
+            "- 디테일은 실루엣으로만 표현, 곡면 없음.\n"
+            "- Subdivision Surface 절대 금지."
+        )
+    elif max_polys <= 500:
+        return (
+            "\n\n[폴리곤 디테일 가이드 - 초저폴리 (~500)]\n"
+            "- 원형 단면: 6~8각형 (segments=6~8)\n"
+            "- 구체: segments=8, rings=4 수준\n"
+            "- 주요 형태만 표현. 세부 파트는 단순 박스/원뿔.\n"
+            "- Subdivision Surface 금지."
+        )
+    elif max_polys <= 1000:
+        return (
+            "\n\n[폴리곤 디테일 가이드 - 로우폴리 기본 (~1000)]\n"
+            "- 원형 단면: 8~10각형 (segments=8~10)\n"
+            "- 구체: segments=10, rings=6 수준\n"
+            "- 메인 파트 + 2~3개 서브파트까지 표현 가능.\n"
+            "- 부드러운 곡면은 Shade Smooth로만 처리.\n"
+            "- Subdivision Surface 레벨 최대 1."
+        )
+    elif max_polys <= 2000:
+        return (
+            "\n\n[폴리곤 디테일 가이드 - 로우폴리 중간 (~2000)]\n"
+            "- 원형 단면: 10~12각형 (segments=10~12)\n"
+            "- 구체: segments=12, rings=8 수준\n"
+            "- 파트별 디테일 약간 추가 가능 (눈, 입 등 표정).\n"
+            "- 주요 곡면에 한해 Subdivision Surface 레벨 1.\n"
+            "- Edge Loop 2~3개로 형태 강조 가능."
+        )
+    else:  # 2001~5000
+        return (
+            "\n\n[폴리곤 디테일 가이드 - 로우폴리 고밀도 (~5000)]\n"
+            "- 원형 단면: 12~16각형 (segments=12~16)\n"
+            "- 구체: segments=16, rings=10 수준\n"
+            "- 세부 파트 표현 가능 (손가락, 발가락, 귀 등).\n"
+            "- Subdivision Surface 레벨 1 허용.\n"
+            "- BMesh 정점 변형으로 미세한 실루엣 조정 가능.\n"
+            "- Edge Crease/Bevel로 엣지 강조."
+        )
+
+
 class AgentBase:
     name: str = "Base"
     icon: str = ""
@@ -18,63 +68,32 @@ class AgentBase:
         if output_settings:
             vfx = output_settings.get('vfx', [])
             vfx_text = ", ".join(vfx) if vfx else "없음"
-            style = output_settings.get('style', 'N/A')
+            max_polys = output_settings.get('max_polys', 1000)
             settings_text = (
                 f"\n\n[아웃풋 목표]\n"
-                f"- 폴리곤: {style}\n"
+                f"- 스타일: 로우폴리\n"
                 f"- 테마: {output_settings.get('theme', 'N/A')}\n"
                 f"- 용도: {output_settings.get('purpose', 'N/A')}\n"
-                f"- 최대 폴리곤 수: {output_settings.get('max_polys', 'N/A')}\n"
+                f"- 최대 폴리곤 수: {max_polys}\n"
                 f"- 내보내기 포맷: {output_settings.get('format', 'N/A')}\n"
                 f"- 머티리얼: {'포함' if output_settings.get('material') else '미포함'}\n"
                 f"- VFX: {vfx_text}"
             )
             prompt += settings_text
 
-            # 스타일별 상세 지시
-            if style == "HIGHPOLY":
-                prompt += (
-                    "\n\n[하이폴리 디테일 필수 요구사항]\n"
-                    "하이폴리는 단순히 Subdivision으로 폴리곤 수만 늘리는 것이 아니다.\n"
-                    "실제 표면 디테일 + PBR 머티리얼 + UV를 코드로 구현해야 한다.\n\n"
-                    "=== 1. 메쉬 디테일 ===\n"
-                    "- BMesh 정점을 수학 함수(sin/cos)로 변형하여 표면 질감 표현.\n"
-                    "- 정점마다 노이즈 오프셋으로 자연물의 비대칭/불규칙 표현.\n"
-                    "- 각 세그먼트마다 반지름/형태를 다르게 하여 단조로움 방지.\n"
-                    "- 최소 segments=24, rings=16 이상으로 곡면 해상도 확보.\n"
-                    "- 디테일 파트 분리: 흠집, 주름, 이음새 등 별도 지오메트리.\n\n"
-                    "=== 2. PBR 머티리얼 (필수) ===\n"
-                    "Principled BSDF 기반으로 다음 채널을 모두 설정:\n"
-                    "- Base Color: Noise/Voronoi/ColorRamp로 절차적 색상 변화.\n"
-                    "  단색 금지. 그라데이션, 얼룩, 반점 등 자연스러운 색 변화 필수.\n"
-                    "- Roughness: 부위별 다른 거칠기 (Noise→ColorRamp→Roughness).\n"
-                    "  예: 과일은 신선한 부분 0.2, 상처 부분 0.6.\n"
-                    "- Normal/Bump: Noise/Voronoi→Bump 노드로 미세 요철 표현.\n"
-                    "  표면의 질감(나무결, 피부결, 금속 스크래치 등)을 표현.\n"
-                    "- Subsurface: 유기체(피부, 과일 등)는 SSS 적용.\n"
-                    "- Metallic: 금속 재질은 1.0, 비금속은 0.0.\n"
-                    "- Specular/Clearcoat: 광택 있는 표면(자동차, 과일)에 적용.\n\n"
-                    "=== 3. UV 언랩 (필수) ===\n"
-                    "- 오브젝트 생성 후 반드시 UV 전개 수행:\n"
-                    "  bpy.ops.object.mode_set(mode='EDIT')\n"
-                    "  bpy.ops.mesh.select_all(action='SELECT')\n"
-                    "  bpy.ops.uv.smart_project(angle_limit=66, island_margin=0.02)\n"
-                    "  bpy.ops.object.mode_set(mode='OBJECT')\n"
-                    "- UV 좌표 기반 텍스처 매핑을 위해 TexCoord→Mapping 노드 사용.\n\n"
-                    "=== 4. Displacement ===\n"
-                    "- Texture 기반 Displacement 모디파이어로 표면 변형.\n"
-                    "- 또는 셰이더 노드의 Displacement Output 활용.\n\n"
-                    "금지: Subdivision만 올려서 매끈한 공 만들기.\n"
-                    "금지: 단색 Principled BSDF만 달기. 반드시 노드 기반 절차적 텍스처."
-                )
-            elif style == "LOWPOLY":
-                prompt += (
-                    "\n\n[로우폴리 스타일 요구사항]\n"
-                    "- 최소한의 폴리곤으로 형태의 특징을 잡는다.\n"
-                    "- 6~8각 단면을 활용하여 각진 느낌을 살린다.\n"
-                    "- Subdivision Surface 사용을 최소화한다.\n"
-                    "- 머티리얼은 단순 색상 위주 (Flat Color)."
-                )
+            # 로우폴리 기본 요구사항
+            prompt += (
+                "\n\n[로우폴리 스타일 필수 요구사항]\n"
+                "- 최소한의 폴리곤으로 형태의 특징을 잡는다.\n"
+                "- 각진 느낌을 살리되, 실루엣은 명확하게.\n"
+                "- 머티리얼은 단순 색상 위주 (Flat Color).\n"
+                "- 불필요한 Subdivision Surface 사용을 최소화한다.\n"
+                f"- 반드시 최대 {max_polys}개 폴리곤 이내로 제작한다."
+            )
+
+            # 폴리곤 수에 따른 구체적 디테일 가이드
+            prompt += _poly_detail_guide(max_polys)
+
         return prompt
 
     def run(self, messages: list[dict], output_settings: dict | None = None,

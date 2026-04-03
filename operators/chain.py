@@ -30,7 +30,7 @@ def _get_output_settings(scene) -> dict:
             vfx_list.append("이펙트애니메이션(폭발/등장/소멸)")
 
     return {
-        "style": scene.nup_output_style,
+        "style": "LOWPOLY",
         "theme": scene.nup_output_theme,
         "purpose": scene.nup_output_purpose,
         "format": scene.nup_output_format,
