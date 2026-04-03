@@ -75,7 +75,7 @@ class NUP_PT_MainPanel(bpy.types.Panel):
         # 폴리곤 수 슬라이더
         col = box.column(align=True)
         col.prop(scene, "nup_output_max_polys", slider=True)
-        col.label(text="범위: 50 ~ 5,000", icon="INFO")
+        col.label(text="범위: 20 ~ 5,000", icon="INFO")
 
         box.separator()
 

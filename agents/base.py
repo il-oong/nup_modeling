@@ -6,7 +6,19 @@ from ..core.gemini import call_gemini
 # 폴리곤 수에 따른 디테일 레벨 매핑
 def _poly_detail_guide(max_polys: int) -> str:
     """폴리곤 수에 따라 구체적인 메쉬 세그먼트/디테일 가이드를 반환한다."""
-    if max_polys <= 300:
+    if max_polys <= 100:
+        return (
+            "\n\n[디테일 가이드 - 초극저폴리 (~100)]\n"
+            "- 원형 단면: segments=4~5 (사각형~오각형)\n"
+            "- 구체: segments=4, rings=3 (다이아몬드/큐브 느낌)\n"
+            "- 전체를 2~3개 파트로만 구성. 극도로 단순한 실루엣.\n"
+            "- 큐브/변형 큐브 기반 모델링 권장.\n"
+            "- 눈/코 같은 소형 파트는 면 1~2개로 표현하거나 생략.\n"
+            "- 머티리얼 색상으로 디테일을 대체한다 (눈=검정 면, 입=빨강 면).\n"
+            "- Subdivision Surface 절대 금지.\n"
+            "- 마인크래프트/복셀 스타일의 각진 캐릭터가 목표."
+        )
+    elif max_polys <= 300:
         return (
             "\n\n[디테일 가이드 - 극저폴리 (~300)]\n"
             "- 원형 단면: segments=6~8\n"

@@ -128,7 +128,7 @@ def register_properties():
         name="최대 폴리곤",
         description="최대 폴리곤 수 (로우폴리)",
         default=1000,
-        min=50,
+        min=20,
         max=5000,
     )
 
