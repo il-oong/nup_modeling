@@ -37,16 +37,26 @@ def _load_thumb_to_blender(image_id: str, filepath: str):
     existing = bpy.data.images.get(name)
     if existing:
         existing.reload()
+        existing.preview_ensure()
         return existing
 
     try:
         img = bpy.data.images.load(filepath)
         img.name = name
-        preview = img.preview_ensure()
-        preview.icon_size = [128, 128]
+        # 프리뷰 강제 생성: 이미지 픽셀을 직접 읽어서 프리뷰에 설정
+        img.preview_ensure()
+        # GL 로드로 프리뷰 생성 강제 트리거
+        img.gl_load()
         return img
     except RuntimeError:
         return None
+
+
+def _delayed_redraw():
+    """썸네일 프리뷰 생성 후 UI를 다시 그린다."""
+    for area in bpy.context.screen.areas:
+        area.tag_redraw()
+    return None  # 타이머 해제
 
 
 class NUP_OT_SearchRefImage(bpy.types.Operator):
@@ -132,6 +142,11 @@ class NUP_OT_SearchRefImage(bpy.types.Operator):
                     thumb_path = _thumb_paths.get(item["id"])
                     if thumb_path:
                         _load_thumb_to_blender(item["id"], thumb_path)
+
+                # 프리뷰 생성 대기 후 UI 갱신 (0.5초, 1초, 2초)
+                bpy.app.timers.register(_delayed_redraw, first_interval=0.5)
+                bpy.app.timers.register(_delayed_redraw, first_interval=1.0)
+                bpy.app.timers.register(_delayed_redraw, first_interval=2.0)
 
                 self.report({"INFO"}, f"{len(_search_results)}개 이미지를 찾았습니다")
             else:

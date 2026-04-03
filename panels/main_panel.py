@@ -146,17 +146,25 @@ class NUP_PT_MainPanel(bpy.types.Panel):
                 thumb_img = bpy.data.images.get(thumb_name)
                 icon_id = 0
                 if thumb_img:
-                    if thumb_img.preview is None:
-                        thumb_img.preview_ensure()
-                    if thumb_img.preview:
-                        icon_id = thumb_img.preview.icon_id
+                    preview = thumb_img.preview_ensure()
+                    if preview and preview.icon_id:
+                        icon_id = preview.icon_id
+                    elif thumb_img.has_data:
+                        # 픽셀 데이터가 있으면 프리뷰 강제 갱신
+                        thumb_img.gl_load()
+                        if preview and preview.icon_id:
+                            icon_id = preview.icon_id
 
                 if icon_id > 0:
                     col.template_icon(icon_value=icon_id, scale=5.0)
                 else:
-                    sub = col.box()
-                    sub.scale_y = 3.0
-                    sub.label(text="...", icon="IMAGE_DATA")
+                    # 이미지가 로드됐지만 프리뷰가 아직 없는 경우 이미지 표시
+                    if thumb_img and thumb_img.has_data:
+                        col.template_icon(icon_value=thumb_img.preview.icon_id if thumb_img.preview else 0, scale=5.0)
+                    else:
+                        sub = col.box()
+                        sub.scale_y = 3.0
+                        sub.label(text="...", icon="IMAGE_DATA")
 
                 desc = item.description[:25] if item.description else f"#{i+1}"
                 col.label(text=desc)
